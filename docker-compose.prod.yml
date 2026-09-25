@@ -259,36 +259,6 @@ services:
       minio:
         condition: service_healthy
 
-  patient-web:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.wasm
-      args:
-        PROJECT_PATH: src/Frontend/Patient/LandaDoc.Patient.csproj
-    restart: unless-stopped
-    networks:
-      - landadoc
-
-  doctor-web:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.wasm
-      args:
-        PROJECT_PATH: src/Frontend/Doctor/LandaDoc.Doctor.csproj
-    restart: unless-stopped
-    networks:
-      - landadoc
-
-  admin-web:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.wasm
-      args:
-        PROJECT_PATH: src/Frontend/Admin/LandaDoc.AdminApp.csproj
-    restart: unless-stopped
-    networks:
-      - landadoc
-
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -304,9 +274,6 @@ services:
     networks:
       - landadoc
     depends_on:
-      - patient-web
-      - doctor-web
-      - admin-web
       - identity
       - appointment
       - availability

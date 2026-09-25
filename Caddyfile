@@ -1,15 +1,3 @@
-patient.{$DOMAIN} {
-    reverse_proxy patient-web:8080
-}
-
-doctor.{$DOMAIN} {
-    reverse_proxy doctor-web:8080
-}
-
-admin.{$DOMAIN} {
-    reverse_proxy admin-web:8080
-}
-
 api.{$DOMAIN} {
     handle_path /identity/* {
         reverse_proxy identity:8080

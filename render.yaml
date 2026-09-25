@@ -1,5 +1,5 @@
 # Render Blueprint for the LandaDoc backend (free-tier demo).
-# See DEPLOY-RENDER-VERCEL.md for the step-by-step setup, including the values
+# See DEPLOY-RENDER.md for the step-by-step setup, including the values
 # you must add by hand to the `landadoc-shared` environment group.
 #
 # Every service builds from docker/Dockerfile.service. Render passes a

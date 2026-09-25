@@ -1,14 +1,17 @@
 # Deploying LandaDoc to an OVH VPS
 
-Everything (9 backend services, 3 Blazor WASM frontends, Postgres, Redis, RabbitMQ, MinIO, Caddy) runs via `docker-compose.prod.yml` on one VPS.
-`src/LandaDoc.Gateway` and the `.Mobile` (MAUI) projects are not part of this
-deployment — the gateway is an unused stub, and the mobile apps ship through
-app stores, not a web server.
+The backend (9 services, Postgres, Redis, RabbitMQ, MinIO, Caddy) runs via
+`docker-compose.prod.yml` on one VPS. `src/LandaDoc.Gateway` is not part of
+this deployment — it is an unused stub.
+
+The web frontends live in their own repos (Patient-repo, Doctor-repo,
+Admin-repo) and deploy separately; each of those repos has its own guide.
 
 ## 1. Provision the VPS
 
 - Ubuntu 24.04 LTS.
-- At least 4 vCPU / 8 GB RAM / 80 GB NVMe or SSD — this box runs as+database, a broker, object storage, and 12 .NET/nginx containers at once.
+- At least 4 vCPU / 8 GB RAM / 80 GB NVMe or SSD — this box runs a
+  database, a broker, object storage, and 9 .NET containers at once.
 - Note the public IPv4 address.
 
 ## 2. DNS
@@ -18,9 +21,6 @@ VPS's IP:
 
 | Name | Type | Value |
 |---|---|---|
-| `patient` | A | `<vps-ip>` |
-| `doctor` | A | `<vps-ip>` |
-| `admin` | A | `<vps-ip>` |
 | `api` | A | `<vps-ip>` |
 
 ## 3. Firewall
@@ -91,9 +91,9 @@ docker compose -f docker-compose.prod.yml logs caddy
 
 ## 7. Verify
 
-- `https://patient.landadoc.fr`, `https://doctor.landadoc.fr`,
-  `https://admin.landadoc.fr` load over HTTPS.
-- Browser dev tools Network tab on `patient.landadoc.fr`: API calls go to
+- `https://api.landadoc.fr/identity/health` (and the other services) return
+  `{"status":"healthy"}` over HTTPS.
+- From a deployed frontend, browser dev tools Network tab: API calls go to
   `https://api.landadoc.fr/identity/...` etc. with no CORS errors.
 - A login and a booking flow round-trip successfully (Identity + Appointment
   + Availability).

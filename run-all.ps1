@@ -8,16 +8,17 @@
   its console output live) while also teeing that output to a log file under
   .run-logs\ for later inspection.
 
-.PARAMETER IncludeGatewayAndFrontends
-  Also start the Gateway and the two Blazor frontends. Off by default since
-  the Gateway currently has no routes wired up.
+.PARAMETER IncludeGateway
+  Also start the Gateway. Off by default since it currently has no routes
+  wired up. The web frontends live in their own repos (Patient-repo,
+  Doctor-repo, Admin-repo).
 
 .EXAMPLE
   .\run-all.ps1
-  .\run-all.ps1 -IncludeGatewayAndFrontends
+  .\run-all.ps1 -IncludeGateway
 #>
 param(
-    [switch]$IncludeGatewayAndFrontends
+    [switch]$IncludeGateway
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,11 +36,8 @@ $services = @(
     @{ Name = "Review";       Path = "src\Services\Review\LandaDoc.Review.csproj";              Port = 5253 }
 )
 
-if ($IncludeGatewayAndFrontends) {
+if ($IncludeGateway) {
     $services += @{ Name = "Gateway"; Path = "src\LandaDoc.Gateway\LandaDoc.Gateway.csproj"; Port = 5141 }
-    $services += @{ Name = "Patient"; Path = "src\Frontend\Patient\LandaDoc.Patient.csproj"; Port = 5299 }
-    $services += @{ Name = "Doctor";  Path = "src\Frontend\Doctor\LandaDoc.Doctor.csproj";   Port = 5003 }
-    $services += @{ Name = "AdminApp"; Path = "src\Frontend\Admin\LandaDoc.AdminApp.csproj"; Port = 5500 }
 }
 
 Write-Host "Starting docker infra (postgres, redis, rabbitmq, minio)..." -ForegroundColor Cyan
@@ -48,7 +46,7 @@ docker compose up -d
 Pop-Location
 
 # Build once, up front. The per-service windows below launch via `dotnet run` seconds apart;
-# several of them reference shared projects (LandaDoc.Shared, LandaDoc.Frontend.Shared), and
+# several of them reference shared projects (LandaDoc.Shared), and
 # without this, concurrent `dotnet run` builds race to write the same obj/ dll and fail with
 # CS2012 "cannot open ... for writing". Building here first means each service's own
 # `dotnet run` finds everything already up to date and just starts.
