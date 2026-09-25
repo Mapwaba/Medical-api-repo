@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Data;
 using System.Text;
 using Amazon.S3;
 using LandaDoc.Document.Consumers;
@@ -10,7 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<DocumentDbContext>(o =>
-    o.UseSqlServer(builder.Configuration.GetConnectionString("document")));
+    o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
 
 builder.Services.AddSingleton<IAmazonS3>(_ =>
 {
@@ -48,10 +49,16 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<AppointmentCompletedConsumer>();
     x.UsingRabbitMq((ctx, cfg) =>
     {
-        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), "/", h =>
+        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), builder.Configuration["RabbitMq:VirtualHost"] ?? "/", h =>
         {
             h.Username(builder.Configuration["RabbitMq:Username"]);
             h.Password(builder.Configuration["RabbitMq:Password"]);
+            if (builder.Configuration.GetValue<bool>("RabbitMq:UseSsl"))
+                h.UseSsl(s =>
+                {
+                    s.ServerName = builder.Configuration["RabbitMq:Host"];
+                    s.Protocol = System.Security.Authentication.SslProtocols.Tls12;
+                });
         });
         cfg.ConfigureEndpoints(ctx);
     });
@@ -76,15 +83,22 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider
-        .GetRequiredService<DocumentDbContext>()
-        .Database.MigrateAsync();
 
     // MinIO doesn't auto-create buckets — ensure the dev bucket exists on startup.
     var s3 = scope.ServiceProvider.GetRequiredService<Amazon.S3.IAmazonS3>();
     var bucketName = builder.Configuration["S3:BucketName"]!;
     if (!await Amazon.S3.Util.AmazonS3Util.DoesS3BucketExistV2Async(s3, bucketName))
         await s3.PutBucketAsync(bucketName);
+}
+
+// Off by default outside Development so a deploy never alters the schema
+// unless the host opts in (Database__MigrateOnStartup=true).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider
+        .GetRequiredService<DocumentDbContext>()
+        .Database.MigrateAsync();
 }
 
 app.UseHttpsRedirection();

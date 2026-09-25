@@ -15,6 +15,7 @@ x-service-defaults: &service-defaults
     Cors__AllowedOrigins__0: https://patient.${DOMAIN}
     Cors__AllowedOrigins__1: https://doctor.${DOMAIN}
     Cors__AllowedOrigins__2: https://admin.${DOMAIN}
+    Database__MigrateOnStartup: "true"
   depends_on:
     rabbitmq:
       condition: service_healthy
@@ -32,23 +33,6 @@ services:
       - landadoc
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    restart: unless-stopped
-    environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: ${MSSQL_SA_PASSWORD}
-      MSSQL_PID: Developer
-    volumes:
-      - mssqldata:/var/opt/mssql
-    networks:
-      - landadoc
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -215,19 +199,19 @@ services:
         ASSEMBLY_NAME: LandaDoc.Payment
     environment:
       <<: *service-env-defaults
-      ConnectionStrings__payment: Server=mssql,1433;Database=landadoc_db;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
       Stripe__SecretKey: ${STRIPE_SECRET_KEY}
       Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
       MokoAfrika__MerchantId: ${MOKOAFRIKA_MERCHANT_ID}
       MokoAfrika__MerchantSecret: ${MOKOAFRIKA_MERCHANT_SECRET}
       MokoAfrika__HmacKey: ${MOKOAFRIKA_HMAC_KEY}
       MokoAfrika__AesKey: ${MOKOAFRIKA_AES_KEY}
-      MokoAfrika__CallbackBaseUrl: https://api.${DOMAIN}/payment/webhook/moko
+      MokoAfrika__CallbackBaseUrl: https://api.${DOMAIN}/payment
       Frontend__PatientBaseUrl: https://patient.${DOMAIN}
     depends_on:
       rabbitmq:
         condition: service_healthy
-      mssql:
+      postgres:
         condition: service_healthy
 
   notification:
@@ -240,7 +224,7 @@ services:
         ASSEMBLY_NAME: LandaDoc.Notification
     environment:
       <<: *service-env-defaults
-      ConnectionStrings__notification: Server=mssql,1433;Database=landadoc_db;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
       Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}
       Twilio__AuthToken: ${TWILIO_AUTH_TOKEN}
       Twilio__From: ${TWILIO_FROM}
@@ -249,7 +233,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      mssql:
+      postgres:
         condition: service_healthy
 
   document:
@@ -262,7 +246,7 @@ services:
         ASSEMBLY_NAME: LandaDoc.Document
     environment:
       <<: *service-env-defaults
-      ConnectionStrings__document: Server=mssql,1433;Database=landadoc_db;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
       S3__ServiceUrl: http://minio:9000
       S3__AccessKey: ${MINIO_ROOT_USER}
       S3__SecretKey: ${MINIO_ROOT_PASSWORD}
@@ -270,7 +254,7 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      mssql:
+      postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -339,7 +323,6 @@ networks:
 
 volumes:
   pgdata:
-  mssqldata:
   redisdata:
   rabbitdata:
   miniodata:

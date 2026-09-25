@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace LandaDoc.Document.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialPostgres : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -15,17 +15,17 @@ namespace LandaDoc.Document.Migrations
                 name: "documents",
                 columns: table => new
                 {
-                    id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    patient_id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    doctor_id = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    appointment_id = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    uploaded_by_user_id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    file_name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    content_type = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    patient_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    doctor_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    appointment_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    uploaded_by_user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    file_name = table.Column<string>(type: "text", nullable: false),
+                    content_type = table.Column<string>(type: "text", nullable: false),
                     size_bytes = table.Column<long>(type: "bigint", nullable: false),
-                    category = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    storage_key = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    created_at = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    category = table.Column<string>(type: "text", nullable: false),
+                    storage_key = table.Column<string>(type: "text", nullable: false),
+                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {

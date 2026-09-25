@@ -30,7 +30,7 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
 
             // lets the consumer/webhook check for an existing row before inserting
             e.HasIndex(x => x.AppointmentId);
-            e.HasIndex(x => x.ProviderRef).IsUnique().HasFilter("[provider_ref] IS NOT NULL");
+            e.HasIndex(x => x.ProviderRef).IsUnique().HasFilter("provider_ref IS NOT NULL");
         });
 
         mb.Entity<Models.DoctorFee>(e =>

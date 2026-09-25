@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Search.Consumers;
 using LandaDoc.Search.Services;
@@ -9,7 +10,7 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379"));
+    ConnectionMultiplexer.Connect(RedisConnectionString.Normalize(builder.Configuration.GetConnectionString("Redis")) ?? "localhost:6379"));
 
 builder.Services.AddScoped<ISearchIndexService, SearchIndexService>();
 
@@ -45,10 +46,16 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<ReviewSubmittedConsumer>();
     x.UsingRabbitMq((ctx, cfg) =>
     {
-        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), "/", h =>
+        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), builder.Configuration["RabbitMq:VirtualHost"] ?? "/", h =>
         {
             h.Username(builder.Configuration["RabbitMq:Username"]);
             h.Password(builder.Configuration["RabbitMq:Password"]);
+            if (builder.Configuration.GetValue<bool>("RabbitMq:UseSsl"))
+                h.UseSsl(s =>
+                {
+                    s.ServerName = builder.Configuration["RabbitMq:Host"];
+                    s.Protocol = System.Security.Authentication.SslProtocols.Tls12;
+                });
         });
         cfg.ConfigureEndpoints(ctx);
     });

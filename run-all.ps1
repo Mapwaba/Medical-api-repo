@@ -3,7 +3,7 @@
   Starts docker infra + all LandaDoc backend services for local development.
 
 .DESCRIPTION
-  Brings up postgres/mssql/redis/rabbitmq/minio via docker compose, then
+  Brings up postgres/redis/rabbitmq/minio via docker compose, then
   launches each backend service in its own PowerShell window (so you can see
   its console output live) while also teeing that output to a log file under
   .run-logs\ for later inspection.
@@ -42,7 +42,7 @@ if ($IncludeGatewayAndFrontends) {
     $services += @{ Name = "AdminApp"; Path = "src\Frontend\Admin\LandaDoc.AdminApp.csproj"; Port = 5500 }
 }
 
-Write-Host "Starting docker infra (postgres, mssql, redis, rabbitmq, minio)..." -ForegroundColor Cyan
+Write-Host "Starting docker infra (postgres, redis, rabbitmq, minio)..." -ForegroundColor Cyan
 Push-Location $repoRoot
 docker compose up -d
 Pop-Location

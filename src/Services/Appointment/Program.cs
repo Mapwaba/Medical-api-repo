@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Appointment.Consumers;
 using LandaDoc.Appointment.Data;
@@ -18,7 +19,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
 builder.Services.AddDbContext<AppointmentDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("Conx")));
+    o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
 
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddHostedService<PendingPaymentExpiryService>();
@@ -65,10 +66,16 @@ builder.Services.AddMassTransit(x =>
         .Endpoint(e => e.Name = "appointment-dependent-removed");
     x.UsingRabbitMq((ctx, cfg) =>
     {
-        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), "/", h =>
+        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), builder.Configuration["RabbitMq:VirtualHost"] ?? "/", h =>
         {
             h.Username(builder.Configuration["RabbitMq:Username"]);
             h.Password(builder.Configuration["RabbitMq:Password"]);
+            if (builder.Configuration.GetValue<bool>("RabbitMq:UseSsl"))
+                h.UseSsl(s =>
+                {
+                    s.ServerName = builder.Configuration["RabbitMq:Host"];
+                    s.Protocol = System.Security.Authentication.SslProtocols.Tls12;
+                });
         });
         cfg.ConfigureEndpoints(ctx);
     });
@@ -92,15 +99,21 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider
-        .GetRequiredService<AppointmentDbContext>()
-        .Database.MigrateAsync();
 }
 else
 {
     app.UseExceptionHandler();
     app.UseHsts();
+}
+
+// Off by default outside Development so a deploy never alters the schema
+// unless the host opts in (Database__MigrateOnStartup=true).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider
+        .GetRequiredService<AppointmentDbContext>()
+        .Database.MigrateAsync();
 }
 
 app.UseHttpsRedirection();

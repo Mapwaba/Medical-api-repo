@@ -36,20 +36,6 @@ services:
     networks:
       - landadoc
 
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: landamssql
-    environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "LandaDoc123!"
-      MSSQL_PID: Developer
-    ports:
-      - "1433:1433"
-    volumes:
-      - landamssql_data:/var/opt/mssql
-    networks:
-      - landadoc
-
   minio:
     image: minio/minio:latest
     container_name: landaminio
@@ -73,5 +59,4 @@ volumes:
   landapgsql_data:
   landaredis_data:
   landarabbit_data:
-  landamssql_data:
   landaminio_data:

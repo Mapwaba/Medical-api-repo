@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Identity.Consumers;
 using LandaDoc.Identity.Data;
@@ -19,7 +20,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
 builder.Services.AddDbContext<IdentityDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("Conx")));
+    o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
 
 builder.Services.AddSingleton<IPasswordHasher, PasswordService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
@@ -57,10 +58,16 @@ builder.Services.AddMassTransit(x =>
     x.UsingRabbitMq((context, cfg) =>
     {
         cfg.Host(builder.Configuration["RabbitMq:Host"] ?? "localhost",
-            ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), "/", h =>
+            ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), builder.Configuration["RabbitMq:VirtualHost"] ?? "/", h =>
         {
             h.Username(builder.Configuration["RabbitMq:Username"] ?? "guest");
             h.Password(builder.Configuration["RabbitMq:Password"] ?? "guest");
+            if (builder.Configuration.GetValue<bool>("RabbitMq:UseSsl"))
+                h.UseSsl(s =>
+                {
+                    s.ServerName = builder.Configuration["RabbitMq:Host"];
+                    s.Protocol = System.Security.Authentication.SslProtocols.Tls12;
+                });
         });
         cfg.ConfigureEndpoints(context);
     });
@@ -97,15 +104,21 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider
-        .GetRequiredService<IdentityDbContext>()
-        .Database.MigrateAsync();
 }
 else
 {
     app.UseExceptionHandler();
     app.UseHsts();
+}
+
+// Off by default outside Development so a deploy never alters the schema
+// unless the host opts in (Database__MigrateOnStartup=true).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider
+        .GetRequiredService<IdentityDbContext>()
+        .Database.MigrateAsync();
 }
 
 app.UseHttpsRedirection();

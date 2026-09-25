@@ -1,5 +1,7 @@
+using LandaDoc.Shared.Data;
 using System.Text;
 using Hangfire;
+using Hangfire.PostgreSql;
 using LandaDoc.Notification.Consumers;
 using LandaDoc.Notification.Data;
 using LandaDoc.Notification.Hubs;
@@ -12,7 +14,7 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<NotificationDbContext>(o =>
-    o.UseSqlServer(builder.Configuration.GetConnectionString("notification")));
+    o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ISmsService, SmsService>();
@@ -21,7 +23,8 @@ builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
 builder.Services.AddSignalR();
 
 builder.Services.AddHangfire(h => h
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("notification")));
+    .UsePostgreSqlStorage(c => c.UseNpgsqlConnection(
+        PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx")))));
 builder.Services.AddHangfireServer();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"]!;
@@ -77,10 +80,16 @@ builder.Services.AddMassTransit(x =>
         .Endpoint(e => e.Name = "notification-appointment-rescheduled");
     x.UsingRabbitMq((ctx, cfg) =>
     {
-        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), "/", h =>
+        cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), builder.Configuration["RabbitMq:VirtualHost"] ?? "/", h =>
         {
             h.Username(builder.Configuration["RabbitMq:Username"]);
             h.Password(builder.Configuration["RabbitMq:Password"]);
+            if (builder.Configuration.GetValue<bool>("RabbitMq:UseSsl"))
+                h.UseSsl(s =>
+                {
+                    s.ServerName = builder.Configuration["RabbitMq:Host"];
+                    s.Protocol = System.Security.Authentication.SslProtocols.Tls12;
+                });
         });
         cfg.ConfigureEndpoints(ctx);
     });
@@ -103,6 +112,12 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+}
+
+// Off by default outside Development so a deploy never alters the schema
+// unless the host opts in (Database__MigrateOnStartup=true).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider
         .GetRequiredService<NotificationDbContext>()

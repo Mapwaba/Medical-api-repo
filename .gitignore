@@ -17,6 +17,7 @@ appsettings.Production.json
 !src/Frontend/Patient/wwwroot/appsettings.Production.json
 !src/Frontend/Doctor/wwwroot/appsettings.Production.json
 !src/Frontend/Admin/wwwroot/appsettings.Production.json
+!deploy/vercel/appsettings.Production.json
 
 # OS
 .DS_Store
@@ -464,3 +465,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# .NET SDK installed by deploy/vercel/build.sh
+.dotnet/

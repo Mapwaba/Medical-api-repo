@@ -1,0 +1,261 @@
+# Render Blueprint for the LandaDoc backend (free-tier demo).
+# See DEPLOY-RENDER-VERCEL.md for the step-by-step setup, including the values
+# you must add by hand to the `landadoc-shared` environment group.
+#
+# Every service builds from docker/Dockerfile.service. Render passes a
+# service's environment variables to `docker build` as build args, which is
+# how PROJECT_PATH / ASSEMBLY_NAME reach the Dockerfile.
+
+databases:
+  - name: landadoc-db
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    databaseName: landadoc_db
+    ipAllowList: [] # internal connections only
+
+envVarGroups:
+  # Non-secret settings shared by all 9 services. Add these by hand in the
+  # dashboard afterwards (Render keeps dashboard-added keys on every sync):
+  #   RabbitMq__Host, RabbitMq__VirtualHost, RabbitMq__Username, RabbitMq__Password
+  #   Cors__AllowedOrigins__0/1/2  (the three Vercel URLs)
+  - name: landadoc-shared
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: PORT
+        value: "8080"
+      - key: Database__MigrateOnStartup
+        value: "true"
+      - key: Jwt__Secret
+        generateValue: true
+      - key: Jwt__Issuer
+        value: landadoc
+      - key: RabbitMq__Port
+        value: "5671"
+      - key: RabbitMq__UseSsl
+        value: "true"
+
+services:
+  - type: keyvalue
+    name: landadoc-redis
+    plan: free
+    region: frankfurt
+    ipAllowList: [] # internal connections only
+
+  - type: web
+    name: landadoc-identity
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Identity/LandaDoc.Identity.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Identity
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+
+  - type: web
+    name: landadoc-appointment
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Appointment/LandaDoc.Appointment.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Appointment
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+
+  - type: web
+    name: landadoc-availability
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Availability/LandaDoc.Availability.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Availability
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+      - key: ConnectionStrings__Redis
+        fromService:
+          type: keyvalue
+          name: landadoc-redis
+          property: connectionString
+
+  - type: web
+    name: landadoc-admin
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Admin/LandaDoc.Admin.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Admin
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+
+  - type: web
+    name: landadoc-review
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Review/LandaDoc.Review.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Review
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+      # Free services can't receive private-network traffic, so this goes
+      # over the public URL. Fix it if Render added a suffix to the name.
+      - key: Services__AppointmentBaseUrl
+        value: https://landadoc-appointment.onrender.com
+
+  - type: web
+    name: landadoc-search
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Search/LandaDoc.Search.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Search
+      - key: ConnectionStrings__Redis
+        fromService:
+          type: keyvalue
+          name: landadoc-redis
+          property: connectionString
+
+  - type: web
+    name: landadoc-payment
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Payment/LandaDoc.Payment.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Payment
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+      - key: MokoAfrika__CallbackBaseUrl
+        value: https://landadoc-payment.onrender.com
+      - key: Frontend__PatientBaseUrl
+        sync: false # the Patient app's Vercel URL
+      - key: Stripe__SecretKey
+        sync: false
+      - key: Stripe__WebhookSecret
+        sync: false
+      - key: MokoAfrika__MerchantId
+        sync: false
+      - key: MokoAfrika__MerchantSecret
+        sync: false
+      - key: MokoAfrika__HmacKey
+        sync: false
+      - key: MokoAfrika__AesKey
+        sync: false
+
+  - type: web
+    name: landadoc-notification
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Notification/LandaDoc.Notification.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Notification
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+      - key: Twilio__AccountSid
+        sync: false
+      - key: Twilio__AuthToken
+        sync: false
+      - key: Twilio__From
+        sync: false
+      - key: SendGrid__ApiKey
+        sync: false
+      - key: SendGrid__From
+        sync: false
+
+  - type: web
+    name: landadoc-document
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./docker/Dockerfile.service
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: landadoc-shared
+      - key: PROJECT_PATH
+        value: src/Services/Document/LandaDoc.Document.csproj
+      - key: ASSEMBLY_NAME
+        value: LandaDoc.Document
+      - key: ConnectionStrings__Conx
+        fromDatabase:
+          name: landadoc-db
+          property: connectionString
+      # Any S3-compatible bucket, e.g. Cloudflare R2:
+      #   https://<account-id>.r2.cloudflarestorage.com
+      - key: S3__ServiceUrl
+        sync: false
+      - key: S3__AccessKey
+        sync: false
+      - key: S3__SecretKey
+        sync: false
+      - key: S3__BucketName
+        value: landadoc-documents

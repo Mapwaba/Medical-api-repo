@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Availability.Consumers;
 using LandaDoc.Availability.Data;
@@ -11,10 +12,10 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AvailabilityDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("Conx")));
+    o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379"));
+    ConnectionMultiplexer.Connect(RedisConnectionString.Normalize(builder.Configuration.GetConnectionString("Redis")) ?? "localhost:6379"));
 
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 
@@ -46,10 +47,16 @@ builder.Services.AddMassTransit(x =>
     x.UsingRabbitMq((ctx, cfg) =>
     {
         cfg.Host(builder.Configuration["RabbitMq:Host"] ?? "localhost",
-            ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), "/", h =>
+            ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), builder.Configuration["RabbitMq:VirtualHost"] ?? "/", h =>
         {
             h.Username(builder.Configuration["RabbitMq:Username"] ?? "guest");
             h.Password(builder.Configuration["RabbitMq:Password"] ?? "guest");
+            if (builder.Configuration.GetValue<bool>("RabbitMq:UseSsl"))
+                h.UseSsl(s =>
+                {
+                    s.ServerName = builder.Configuration["RabbitMq:Host"];
+                    s.Protocol = System.Security.Authentication.SslProtocols.Tls12;
+                });
         });
         cfg.ConfigureEndpoints(ctx);
     });
@@ -72,6 +79,12 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+}
+
+// Off by default outside Development so a deploy never alters the schema
+// unless the host opts in (Database__MigrateOnStartup=true).
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider
         .GetRequiredService<AvailabilityDbContext>()
