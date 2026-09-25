@@ -9,7 +9,7 @@ This setup is for demos. For production, use the VPS setup in [DEPLOY.md](DEPLOY
 | Redis | Render free Key Value |
 | RabbitMQ | CloudAMQP free plan |
 | Document file storage | Cloudflare R2, or any S3-compatible bucket |
-| Patient / Doctor / Admin web apps | Vercel, from their own repos (Patient-repo, Doctor-repo, Admin-repo). Each has a `DEPLOY-VERCEL.md`. |
+| Patient / Doctor / Admin web apps | Vercel: three projects from [Appointment-repo](https://github.com/Mapwaba/Appointment-repo). See its `DEPLOY-VERCEL.md`. |
 
 ## Free-tier limits
 
@@ -50,13 +50,13 @@ This setup is for demos. For production, use the VPS setup in [DEPLOY.md](DEPLOY
 6. Check `https://landadoc-identity.onrender.com/health` and the other services' `/health` endpoints. Each should return `{"status":"healthy"}`.
 
 **If Render added a suffix to a name** (for example `landadoc-identity-x7k2.onrender.com`, because the plain name was taken):
-- Update that URL in `deploy/vercel/appsettings.Production.json` in each of the three frontend repos.
+- Update that URL in `deploy/vercel/appsettings.Production.json` in Appointment-repo.
 - If the service is Appointment, update `Services__AppointmentBaseUrl` on the Review service.
 - If the service is Payment, update `MokoAfrika__CallbackBaseUrl` on the Payment service.
 
 ## 3. Frontends
 
-Deploy the three web apps from their own repos. Follow `DEPLOY-VERCEL.md` in Patient-repo, Doctor-repo and Admin-repo.
+Deploy the three web apps from Appointment-repo by following its `DEPLOY-VERCEL.md`.
 
 If a frontend ends up with a different URL than the table in step 2.4 assumes, update the matching `Cors__AllowedOrigins__*` value in the env group. If it is the Patient app, also update `Frontend__PatientBaseUrl` on Payment.
 

@@ -20,15 +20,13 @@ It's made up of 9 ASP.NET Core services that talk to each other over RabbitMQ (M
 
 | Repo | Contents |
 |---|---|
-| [Patient-repo](https://github.com/Mapwaba/Patient-repo) | Patient web app (Blazor WASM) |
-| [Doctor-repo](https://github.com/Mapwaba/Doctor-repo) | Doctor web app (Blazor WASM) |
-| [Admin-repo](https://github.com/Mapwaba/Admin-repo) | Admin web app (Blazor WASM) |
+| [Appointment-repo](https://github.com/Mapwaba/Appointment-repo) | Patient, Doctor and Admin web apps (Blazor WASM) |
 
 ## Shared contracts: `src/LandaDoc.Shared`
 
-This repo holds the master copy of `src/LandaDoc.Shared`: DTOs, events and enums. Each frontend repo has its own copy at the same path.
+This repo holds the master copy of `src/LandaDoc.Shared`: DTOs, events and enums. Appointment-repo has its own copy at the same path.
 
-When you change a DTO or enum here, copy `src/LandaDoc.Shared` into all three frontend repos in the same change. Otherwise the frontends will send or read the old shape.
+When you change a DTO or enum here, copy `src/LandaDoc.Shared` into Appointment-repo in the same change. Otherwise the frontends will send or read the old shape.
 
 ## Running locally
 

@@ -10,8 +10,7 @@
 
 .PARAMETER IncludeGateway
   Also start the Gateway. Off by default since it currently has no routes
-  wired up. The web frontends live in their own repos (Patient-repo,
-  Doctor-repo, Admin-repo).
+  wired up. The web frontends live in Appointment-repo.
 
 .EXAMPLE
   .\run-all.ps1

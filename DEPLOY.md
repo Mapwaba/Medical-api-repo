@@ -4,8 +4,8 @@ The backend (9 services, Postgres, Redis, RabbitMQ, MinIO, Caddy) runs via
 `docker-compose.prod.yml` on one VPS. `src/LandaDoc.Gateway` is not part of
 this deployment — it is an unused stub.
 
-The web frontends live in their own repos (Patient-repo, Doctor-repo,
-Admin-repo) and deploy separately; each of those repos has its own guide.
+The web frontends live in Appointment-repo and deploy separately; see its
+DEPLOY-VERCEL.md.
 
 ## 1. Provision the VPS
 
