@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: landapgsql
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: landadoc_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - landapgsql_data:/var/lib/postgresql/data
+    networks:
+      - landadoc
+
+  redis:
+    image: redis:7-alpine
+    container_name: landaredis
+    ports:
+      - "6379:6379"
+    volumes:
+      - landaredis_data:/data
+    networks:
+      - landadoc
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: landarabbit
+    ports:
+      # Remapped off the default 5672/15672 — this host already has a native
+      # RabbitMQ Windows service bound to those ports, which was silently
+      # swallowing connections meant for this container.
+      - "5673:5672"
+      - "15673:15672"
+    volumes:
+      - landarabbit_data:/var/lib/rabbitmq
+    networks:
+      - landadoc
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: landamssql
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "LandaDoc123!"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - landamssql_data:/var/opt/mssql
+    networks:
+      - landadoc
+
+  minio:
+    image: minio/minio:latest
+    container_name: landaminio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - landaminio_data:/data
+    networks:
+      - landadoc
+
+networks:
+  landadoc:
+    driver: bridge
+
+volumes:
+  landapgsql_data:
+  landaredis_data:
+  landarabbit_data:
+  landamssql_data:
+  landaminio_data:

@@ -1,0 +1,6 @@
+@LandaDoc.Payment_HostAddress = http://localhost:5114
+
+GET {{LandaDoc.Payment_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,6 @@
+@LandaDoc.Notification_HostAddress = http://localhost:5286
+
+GET {{LandaDoc.Notification_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

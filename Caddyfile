@@ -1,0 +1,41 @@
+patient.{$DOMAIN} {
+    reverse_proxy patient-web:8080
+}
+
+doctor.{$DOMAIN} {
+    reverse_proxy doctor-web:8080
+}
+
+admin.{$DOMAIN} {
+    reverse_proxy admin-web:8080
+}
+
+api.{$DOMAIN} {
+    handle_path /identity/* {
+        reverse_proxy identity:8080
+    }
+    handle_path /appointment/* {
+        reverse_proxy appointment:8080
+    }
+    handle_path /availability/* {
+        reverse_proxy availability:8080
+    }
+    handle_path /payment/* {
+        reverse_proxy payment:8080
+    }
+    handle_path /notification/* {
+        reverse_proxy notification:8080
+    }
+    handle_path /admin/* {
+        reverse_proxy admin-api:8080
+    }
+    handle_path /search/* {
+        reverse_proxy search:8080
+    }
+    handle_path /document/* {
+        reverse_proxy document:8080
+    }
+    handle_path /review/* {
+        reverse_proxy review:8080
+    }
+}

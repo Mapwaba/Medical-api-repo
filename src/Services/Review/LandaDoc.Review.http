@@ -1,0 +1,6 @@
+@LandaDoc.Review_HostAddress = http://localhost:5253
+
+GET {{LandaDoc.Review_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

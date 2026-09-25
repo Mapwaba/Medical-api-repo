@@ -1,0 +1,347 @@
+name: landadoc-prod
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - landadoc
+  environment: &service-env-defaults
+    ASPNETCORE_ENVIRONMENT: Production
+    Jwt__Secret: ${JWT_SECRET}
+    Jwt__Issuer: landadoc
+    RabbitMq__Host: rabbitmq
+    RabbitMq__Port: "5672"
+    RabbitMq__Username: ${RABBITMQ_USER}
+    RabbitMq__Password: ${RABBITMQ_PASSWORD}
+    Cors__AllowedOrigins__0: https://patient.${DOMAIN}
+    Cors__AllowedOrigins__1: https://doctor.${DOMAIN}
+    Cors__AllowedOrigins__2: https://admin.${DOMAIN}
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: landadoc_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - landadoc
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: Developer
+    volumes:
+      - mssqldata:/var/opt/mssql
+    networks:
+      - landadoc
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    networks:
+      - landadoc
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    networks:
+      - landadoc
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+    networks:
+      - landadoc
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  identity:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Identity/LandaDoc.Identity.csproj
+        ASSEMBLY_NAME: LandaDoc.Identity
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  appointment:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Appointment/LandaDoc.Appointment.csproj
+        ASSEMBLY_NAME: LandaDoc.Appointment
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  availability:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Availability/LandaDoc.Availability.csproj
+        ASSEMBLY_NAME: LandaDoc.Availability
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
+      ConnectionStrings__Redis: redis:6379
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  admin-api:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Admin/LandaDoc.Admin.csproj
+        ASSEMBLY_NAME: LandaDoc.Admin
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  review:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Review/LandaDoc.Review.csproj
+        ASSEMBLY_NAME: LandaDoc.Review
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Services__AppointmentBaseUrl: http://appointment:8080
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  search:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Search/LandaDoc.Search.csproj
+        ASSEMBLY_NAME: LandaDoc.Search
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__Redis: redis:6379
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  payment:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Payment/LandaDoc.Payment.csproj
+        ASSEMBLY_NAME: LandaDoc.Payment
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__payment: Server=mssql,1433;Database=landadoc_db;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      MokoAfrika__MerchantId: ${MOKOAFRIKA_MERCHANT_ID}
+      MokoAfrika__MerchantSecret: ${MOKOAFRIKA_MERCHANT_SECRET}
+      MokoAfrika__HmacKey: ${MOKOAFRIKA_HMAC_KEY}
+      MokoAfrika__AesKey: ${MOKOAFRIKA_AES_KEY}
+      MokoAfrika__CallbackBaseUrl: https://api.${DOMAIN}/payment/webhook/moko
+      Frontend__PatientBaseUrl: https://patient.${DOMAIN}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mssql:
+        condition: service_healthy
+
+  notification:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Notification/LandaDoc.Notification.csproj
+        ASSEMBLY_NAME: LandaDoc.Notification
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__notification: Server=mssql,1433;Database=landadoc_db;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+      Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}
+      Twilio__AuthToken: ${TWILIO_AUTH_TOKEN}
+      Twilio__From: ${TWILIO_FROM}
+      SendGrid__ApiKey: ${SENDGRID_API_KEY}
+      SendGrid__From: ${SENDGRID_FROM}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mssql:
+        condition: service_healthy
+
+  document:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.service
+      args:
+        PROJECT_PATH: src/Services/Document/LandaDoc.Document.csproj
+        ASSEMBLY_NAME: LandaDoc.Document
+    environment:
+      <<: *service-env-defaults
+      ConnectionStrings__document: Server=mssql,1433;Database=landadoc_db;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+      S3__ServiceUrl: http://minio:9000
+      S3__AccessKey: ${MINIO_ROOT_USER}
+      S3__SecretKey: ${MINIO_ROOT_PASSWORD}
+      S3__BucketName: landadoc-documents
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mssql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  patient-web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.wasm
+      args:
+        PROJECT_PATH: src/Frontend/Patient/LandaDoc.Patient.csproj
+    restart: unless-stopped
+    networks:
+      - landadoc
+
+  doctor-web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.wasm
+      args:
+        PROJECT_PATH: src/Frontend/Doctor/LandaDoc.Doctor.csproj
+    restart: unless-stopped
+    networks:
+      - landadoc
+
+  admin-web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.wasm
+      args:
+        PROJECT_PATH: src/Frontend/Admin/LandaDoc.AdminApp.csproj
+    restart: unless-stopped
+    networks:
+      - landadoc
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN}
+    networks:
+      - landadoc
+    depends_on:
+      - patient-web
+      - doctor-web
+      - admin-web
+      - identity
+      - appointment
+      - availability
+      - payment
+      - notification
+      - admin-api
+      - search
+      - document
+      - review
+
+networks:
+  landadoc:
+    driver: bridge
+
+volumes:
+  pgdata:
+  mssqldata:
+  redisdata:
+  rabbitdata:
+  miniodata:
+  caddy_data:
+  caddy_config:
