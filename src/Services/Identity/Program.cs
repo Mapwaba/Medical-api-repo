@@ -121,6 +121,14 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
         .Database.MigrateAsync();
 }
 
+using (var scope = app.Services.CreateScope())
+{
+    await AdminPromoter.PromoteAsync(
+        scope.ServiceProvider.GetRequiredService<IdentityDbContext>(),
+        app.Configuration["Admin:Email"],
+        app.Logger);
+}
+
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseRateLimiter();
