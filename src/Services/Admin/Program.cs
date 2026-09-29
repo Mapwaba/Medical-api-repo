@@ -14,6 +14,7 @@ builder.Services.AddDbContext<AdminDbContext>(o =>
 
 builder.Services.AddScoped<IClinicService, ClinicService>();
 builder.Services.AddScoped<IDoctorProfileService, DoctorProfileService>();
+builder.Services.AddHostedService<SearchIndexRebuilder>();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"]!;
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "landadoc";

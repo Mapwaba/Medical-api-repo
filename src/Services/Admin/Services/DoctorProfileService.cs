@@ -90,6 +90,20 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
         return new DoctorProfileResult(DoctorProfileResultStatus.Success, profile);
     }
 
+    // Search keeps approved doctors in Redis, which can be wiped (e.g. a free-tier
+    // restart) and misses approvals made while RabbitMQ was down. Re-sending every
+    // approved doctor rebuilds it; Search's upsert makes repeats harmless.
+    public async Task<int> RepublishApprovedAsync(CancellationToken ct = default)
+    {
+        var approved = await db.DoctorProfiles
+            .Include(d => d.Clinics)
+            .Where(d => d.Status == DoctorApprovalStatus.Approved)
+            .ToListAsync(ct);
+        foreach (var profile in approved)
+            await PublishApprovedEventAsync(profile);
+        return approved.Count;
+    }
+
     private Task PublishApprovedEventAsync(Models.DoctorProfile profile) =>
         bus.Publish(new DoctorApprovedEvent(
             DoctorProfileId: profile.Id,

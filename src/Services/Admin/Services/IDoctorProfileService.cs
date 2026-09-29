@@ -22,4 +22,5 @@ public interface IDoctorProfileService
     Task<DoctorProfileResult> UpdateOwnAsync(Guid userId, UpdateOwnDoctorProfileRequest req);
     Task<DoctorProfileResult> ApproveAsync(Guid id);
     Task<DoctorProfileResult> SuspendAsync(Guid id, SuspendDoctorRequest req);
+    Task<int> RepublishApprovedAsync(CancellationToken ct = default);
 }
