@@ -9,7 +9,7 @@ namespace LandaDoc.Admin.Controllers;
 [ApiController]
 [Route("api/doctors/me")]
 [Authorize(Roles = "Doctor")]
-public class DoctorSelfController(IDoctorProfileService doctors) : ControllerBase
+public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration config) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get()
@@ -29,7 +29,10 @@ public class DoctorSelfController(IDoctorProfileService doctors) : ControllerBas
             callerId, req.FirstName, req.LastName, req.Specialty,
             req.Bio, req.LicenseNumber, req.ClinicIds, req.ConsultationFee);
 
-        var result = await doctors.CreateAsync(fullReq);
+        // Self-registered doctors go live for patients straight away unless the host
+        // turns admin review back on with Doctors__RequireApproval=true.
+        var autoApprove = !config.GetValue<bool>("Doctors:RequireApproval");
+        var result = await doctors.CreateAsync(fullReq, autoApprove);
         return result.Status switch
         {
             DoctorProfileResultStatus.AlreadyExists => Conflict(new { error = "You already have a profile" }),

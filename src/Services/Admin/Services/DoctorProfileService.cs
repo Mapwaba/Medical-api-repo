@@ -41,8 +41,8 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
             LicenseNumber = req.LicenseNumber,
             ConsultationFee = req.ConsultationFee,
             Clinics = clinics,
-            // Admin-created profiles are already vetted by the admin creating them,
-            // so they skip the review queue; self-service profiles still need approval.
+            // Admin-created profiles are already vetted by the admin creating them, and
+            // self-service ones skip review unless Doctors:RequireApproval is set.
             Status = autoApprove ? DoctorApprovalStatus.Approved : DoctorApprovalStatus.Pending
         };
         db.DoctorProfiles.Add(profile);
