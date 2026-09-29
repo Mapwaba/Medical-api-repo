@@ -125,7 +125,9 @@ using (var scope = app.Services.CreateScope())
 {
     await AdminPromoter.PromoteAsync(
         scope.ServiceProvider.GetRequiredService<IdentityDbContext>(),
+        scope.ServiceProvider.GetRequiredService<IPasswordHasher>(),
         app.Configuration["Admin:Email"],
+        app.Configuration["Admin:Password"],
         app.Logger);
 }
 
