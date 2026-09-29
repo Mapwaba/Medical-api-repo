@@ -82,6 +82,11 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Databas
         .Database.MigrateAsync();
 }
 
+using (var scope = app.Services.CreateScope())
+{
+    await ClinicSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<AdminDbContext>());
+}
+
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseAuthentication();
