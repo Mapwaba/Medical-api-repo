@@ -285,6 +285,19 @@ public class PaymentsController(
         return Ok(MapToDto(payment));
     }
 
+    // Every payment for the calling doctor's appointments, newest first (Doctor app's Payments page)
+    [HttpGet("doctor/me")]
+    [Authorize(Roles = "Doctor")]
+    public async Task<IActionResult> GetMineAsDoctor()
+    {
+        var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var payments = await db.Payments
+            .Where(p => p.DoctorId == callerId)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+        return Ok(payments.Select(MapToDto));
+    }
+
     [HttpGet("by-appointment/{appointmentId:guid}")]
     [Authorize]
     public async Task<IActionResult> GetByAppointment(Guid appointmentId)

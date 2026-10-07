@@ -7,6 +7,7 @@ public class AdminDbContext(DbContextOptions<AdminDbContext> options) : DbContex
 {
     public DbSet<Clinic> Clinics => Set<Clinic>();
     public DbSet<DoctorProfile> DoctorProfiles => Set<DoctorProfile>();
+    public DbSet<DoctorService> DoctorServices => Set<DoctorService>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -21,6 +22,10 @@ public class AdminDbContext(DbContextOptions<AdminDbContext> options) : DbContex
             e.Property(x => x.Address).HasColumnName("address");
             e.Property(x => x.City).HasColumnName("city").IsRequired();
             e.Property(x => x.Phone).HasColumnName("phone");
+            e.Property(x => x.Email).HasColumnName("email");
+            e.Property(x => x.Website).HasColumnName("website");
+            e.Property(x => x.Description).HasColumnName("description");
+            e.Property(x => x.LogoDataUrl).HasColumnName("logo_data_url");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         });
@@ -48,6 +53,26 @@ public class AdminDbContext(DbContextOptions<AdminDbContext> options) : DbContex
 
             e.HasIndex(x => x.UserId).IsUnique(); // one profile per doctor user
             e.HasIndex(x => x.Status);
+        });
+
+        // ── DoctorService ────────────────────────────────────────────────
+        mb.Entity<DoctorService>(e =>
+        {
+            e.ToTable("doctor_services");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.DoctorProfileId).HasColumnName("doctor_profile_id");
+            e.Property(x => x.Name).HasColumnName("name").IsRequired();
+            e.Property(x => x.Description).HasColumnName("description");
+            e.Property(x => x.Price).HasColumnName("price").HasPrecision(10, 2);
+            e.Property(x => x.DurationMinutes).HasColumnName("duration_minutes");
+            e.Property(x => x.CreatedAt).HasColumnName("created_at");
+            e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
+            e.HasOne(x => x.DoctorProfile)
+                .WithMany(d => d.Services)
+                .HasForeignKey(x => x.DoctorProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

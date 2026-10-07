@@ -10,6 +10,11 @@ public class Clinic
     public string? Address { get; set; }
     public string City { get; set; } = "";
     public string? Phone { get; set; }
+    // Details a doctor fills in on the Doctor app's Workplace page
+    public string? Email { get; set; }
+    public string? Website { get; set; }
+    public string? Description { get; set; }
+    public string? LogoDataUrl { get; set; } // small image stored inline as a data: URL
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

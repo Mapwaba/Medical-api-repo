@@ -17,4 +17,5 @@ public class DoctorProfile
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<Clinic> Clinics { get; set; } = new List<Clinic>();
+    public ICollection<DoctorService> Services { get; set; } = new List<DoctorService>();
 }
