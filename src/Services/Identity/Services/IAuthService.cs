@@ -3,6 +3,9 @@ using LandaDoc.Shared.Models;
 
 namespace LandaDoc.Identity.Services;
 
+// User is null when the account wasn't found (Status is then InvalidCredentials) or on a conflict
+public record UpdateMeResult(AuthResultStatus Status, UserDto? User);
+
 public enum AuthResultStatus
 {
     Success,
@@ -10,6 +13,8 @@ public enum AuthResultStatus
     AccountInactive,
     PendingApproval,
     EmailAlreadyRegistered,
+    PhoneAlreadyRegistered,
+    NameAlreadyRegistered,
     InvalidRefreshToken
 }
 
@@ -22,7 +27,7 @@ public interface IAuthService
     Task<AuthResult> RegisterPatientAsync(RegisterPatientRequest req);
     Task<AuthResult> RegisterDoctorAsync(RegisterDoctorRequest req);
     Task<UserDto?> GetMeAsync(Guid userId);
-    Task<UserDto?> UpdateMeAsync(Guid userId, UpdateMeRequest req);
+    Task<UpdateMeResult> UpdateMeAsync(Guid userId, UpdateMeRequest req);
     // InvalidCredentials when the current password is wrong; on success, fresh tokens for this session
     Task<AuthResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest req);
     Task<List<UserDto>> GetUsersAsync(UserRole? role);

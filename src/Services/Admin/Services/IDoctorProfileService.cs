@@ -7,6 +7,7 @@ public enum DoctorProfileResultStatus
 {
     Success,
     NotFound,
+    NameTaken, // another doctor already has this first and last name
     AlreadyExists,
     InvalidTransition
 }

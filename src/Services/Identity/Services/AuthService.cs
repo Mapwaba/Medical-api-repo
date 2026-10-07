@@ -16,7 +16,8 @@ public class AuthService(
 {
     public async Task<AuthResult> LoginAsync(LoginRequest req)
     {
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
+        var email = AccountUniqueness.NormalizeEmail(req.Email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
         if (user is null || !hasher.Verify(req.Password, user.PasswordHash))
             return new AuthResult(AuthResultStatus.InvalidCredentials);
         if (!user.IsActive)
@@ -48,19 +49,20 @@ public class AuthService(
 
     public async Task<AuthResult> RegisterPatientAsync(RegisterPatientRequest req)
     {
-        if (await db.Users.AnyAsync(u => u.Email == req.Email))
-            return new AuthResult(AuthResultStatus.EmailAlreadyRegistered);
+        var conflict = await AccountUniqueness.FindConflictAsync(
+            db, req.Email, req.Phone, req.FirstName, req.LastName, UserRole.Patient);
+        if (conflict is not null) return new AuthResult(conflict.Value);
 
         Enum.TryParse<Gender>(req.Gender, true, out var gender);
 
         var user = new User
         {
-            Email = req.Email,
+            Email = req.Email.Trim(),
             PasswordHash = hasher.Hash(req.Password),
             Role = UserRole.Patient,
-            FirstName = req.FirstName,
-            LastName = req.LastName,
-            Phone = req.Phone,
+            FirstName = req.FirstName.Trim(),
+            LastName = req.LastName.Trim(),
+            Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim(),
             DateOfBirth = req.DateOfBirth,
             Gender = string.IsNullOrEmpty(req.Gender) ? null : gender,
             IsActive = true,
@@ -85,17 +87,18 @@ public class AuthService(
 
     public async Task<AuthResult> RegisterDoctorAsync(RegisterDoctorRequest req)
     {
-        if (await db.Users.AnyAsync(u => u.Email == req.Email))
-            return new AuthResult(AuthResultStatus.EmailAlreadyRegistered);
+        var conflict = await AccountUniqueness.FindConflictAsync(
+            db, req.Email, req.Phone, req.FirstName, req.LastName, UserRole.Doctor);
+        if (conflict is not null) return new AuthResult(conflict.Value);
 
         var user = new User
         {
-            Email = req.Email,
+            Email = req.Email.Trim(),
             PasswordHash = hasher.Hash(req.Password),
             Role = UserRole.Doctor,
-            FirstName = req.FirstName,
-            LastName = req.LastName,
-            Phone = req.Phone,
+            FirstName = req.FirstName.Trim(),
+            LastName = req.LastName.Trim(),
+            Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim(),
             IsActive = true,
             IsApproved = false // doctors require admin approval before they can log in
         };
@@ -137,17 +140,27 @@ public class AuthService(
         return new UserCountsDto(patientCount, doctorCount);
     }
 
-    public async Task<UserDto?> UpdateMeAsync(Guid userId, UpdateMeRequest req)
+    public async Task<UpdateMeResult> UpdateMeAsync(Guid userId, UpdateMeRequest req)
     {
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
-        if (user is null) return null;
+        if (user is null) return new UpdateMeResult(AuthResultStatus.InvalidCredentials, null);
+
+        // Only check what changes, so someone who already shares a value can still save other fields
+        var phoneChanged = AccountUniqueness.NormalizePhone(req.Phone) != AccountUniqueness.NormalizePhone(user.Phone);
+        var nameChanged = AccountUniqueness.NormalizeName(req.FirstName) != AccountUniqueness.NormalizeName(user.FirstName)
+            || AccountUniqueness.NormalizeName(req.LastName) != AccountUniqueness.NormalizeName(user.LastName);
+        var conflict = await AccountUniqueness.FindConflictAsync(db, null,
+            phoneChanged ? req.Phone : null,
+            nameChanged ? req.FirstName : null, nameChanged ? req.LastName : null,
+            user.Role, exceptUserId: user.Id);
+        if (conflict is not null) return new UpdateMeResult(conflict.Value, null);
 
         user.FirstName = req.FirstName.Trim();
         user.LastName = req.LastName.Trim();
         user.Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim();
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
-        return MapToDto(user);
+        return new UpdateMeResult(AuthResultStatus.Success, MapToDto(user));
     }
 
     public async Task<AuthResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest req)

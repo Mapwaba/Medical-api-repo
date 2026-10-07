@@ -26,6 +26,8 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
     {
         var exists = await db.DoctorProfiles.AnyAsync(d => d.UserId == req.UserId);
         if (exists) return new DoctorProfileResult(DoctorProfileResultStatus.AlreadyExists);
+        if (await NameTakenAsync(req.FirstName, req.LastName, exceptProfileId: null))
+            return new DoctorProfileResult(DoctorProfileResultStatus.NameTaken);
 
         var clinics = req.ClinicIds.Count == 0
             ? new List<Models.Clinic>()
@@ -58,6 +60,13 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
     {
         var profile = await db.DoctorProfiles.Include(d => d.Clinics).FirstOrDefaultAsync(d => d.UserId == userId);
         if (profile is null) return new DoctorProfileResult(DoctorProfileResultStatus.NotFound);
+
+        var newFirst = string.IsNullOrWhiteSpace(req.FirstName) ? profile.FirstName : req.FirstName.Trim();
+        var newLast = string.IsNullOrWhiteSpace(req.LastName) ? profile.LastName : req.LastName.Trim();
+        var nameChanged = !string.Equals(newFirst, profile.FirstName.Trim(), StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(newLast, profile.LastName.Trim(), StringComparison.OrdinalIgnoreCase);
+        if (nameChanged && await NameTakenAsync(newFirst, newLast, exceptProfileId: profile.Id))
+            return new DoctorProfileResult(DoctorProfileResultStatus.NameTaken);
 
         if (!string.IsNullOrWhiteSpace(req.FirstName)) profile.FirstName = req.FirstName.Trim();
         if (!string.IsNullOrWhiteSpace(req.LastName)) profile.LastName = req.LastName.Trim();
@@ -112,6 +121,15 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
         foreach (var profile in approved)
             await PublishApprovedEventAsync(profile);
         return approved.Count;
+    }
+
+    // No two doctors with the same first and last name (case and surrounding spaces ignored)
+    private Task<bool> NameTakenAsync(string firstName, string lastName, Guid? exceptProfileId)
+    {
+        var first = firstName.Trim().ToLower();
+        var last = lastName.Trim().ToLower();
+        return db.DoctorProfiles.AnyAsync(d => d.Id != exceptProfileId
+            && d.FirstName.Trim().ToLower() == first && d.LastName.Trim().ToLower() == last);
     }
 
     private Task PublishApprovedEventAsync(Models.DoctorProfile profile) =>

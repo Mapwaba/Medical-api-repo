@@ -17,7 +17,8 @@ public class AuthController(IAuthService auth) : ControllerBase
         var result = await auth.RegisterPatientAsync(req);
         return result.Status switch
         {
-            AuthResultStatus.EmailAlreadyRegistered => Conflict(new { error = "Email already registered" }),
+            AuthResultStatus.EmailAlreadyRegistered or AuthResultStatus.PhoneAlreadyRegistered
+                or AuthResultStatus.NameAlreadyRegistered => DuplicateConflict(result.Status),
             AuthResultStatus.Success => StatusCode(201, result.Response),
             _ => Problem()
         };
@@ -30,7 +31,8 @@ public class AuthController(IAuthService auth) : ControllerBase
         var result = await auth.RegisterDoctorAsync(req);
         return result.Status switch
         {
-            AuthResultStatus.EmailAlreadyRegistered => Conflict(new { error = "Email already registered" }),
+            AuthResultStatus.EmailAlreadyRegistered or AuthResultStatus.PhoneAlreadyRegistered
+                or AuthResultStatus.NameAlreadyRegistered => DuplicateConflict(result.Status),
             AuthResultStatus.Success => StatusCode(201, result.Response),
             _ => Problem()
         };
@@ -51,9 +53,22 @@ public class AuthController(IAuthService auth) : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var user = await auth.UpdateMeAsync(userId, req);
-        return user is null ? NotFound() : Ok(user);
+        var result = await auth.UpdateMeAsync(userId, req);
+        return result.Status switch
+        {
+            AuthResultStatus.Success => Ok(result.User),
+            AuthResultStatus.InvalidCredentials => NotFound(),
+            _ => DuplicateConflict(result.Status),
+        };
     }
+
+    // 409 with "code" (email | phone | name) so the apps can say exactly which value is taken
+    private ConflictObjectResult DuplicateConflict(AuthResultStatus status) => status switch
+    {
+        AuthResultStatus.PhoneAlreadyRegistered => Conflict(new { error = "Phone number already registered", code = "phone" }),
+        AuthResultStatus.NameAlreadyRegistered => Conflict(new { error = "Someone with this first and last name already exists", code = "name" }),
+        _ => Conflict(new { error = "Email already registered", code = "email" }),
+    };
 
     [HttpPost("change-password")]
     [Authorize]

@@ -36,6 +36,7 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
         return result.Status switch
         {
             DoctorProfileResultStatus.AlreadyExists => Conflict(new { error = "You already have a profile" }),
+            DoctorProfileResultStatus.NameTaken => Conflict(new { error = "A doctor with this first and last name already exists", code = "name" }),
             DoctorProfileResultStatus.Success => StatusCode(201, AdminDoctorsController.MapToDto(result.Profile!)),
             _ => Problem()
         };
@@ -49,6 +50,7 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
         return result.Status switch
         {
             DoctorProfileResultStatus.NotFound => NotFound(),
+            DoctorProfileResultStatus.NameTaken => Conflict(new { error = "A doctor with this first and last name already exists", code = "name" }),
             DoctorProfileResultStatus.Success => Ok(AdminDoctorsController.MapToDto(result.Profile!)),
             _ => Problem()
         };

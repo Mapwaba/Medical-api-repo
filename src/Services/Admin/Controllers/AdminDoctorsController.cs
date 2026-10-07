@@ -30,6 +30,7 @@ public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerB
         return result.Status switch
         {
             DoctorProfileResultStatus.AlreadyExists => Conflict(new { error = "A profile already exists for this user" }),
+            DoctorProfileResultStatus.NameTaken => Conflict(new { error = "A doctor with this first and last name already exists", code = "name" }),
             DoctorProfileResultStatus.Success => StatusCode(201, MapToDto(result.Profile!)),
             _ => Problem()
         };
