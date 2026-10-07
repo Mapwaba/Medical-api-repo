@@ -27,6 +27,14 @@ builder.Services.AddSingleton<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IFamilyService, FamilyService>();
 
+// The Patients page asks the Appointment service which patients a doctor has seen
+builder.Services.AddHttpClient<IAppointmentPatientsClient, AppointmentPatientsClient>(c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["Services:AppointmentBaseUrl"] ?? "http://localhost:5001");
+    // Render's free services can take ~60s to wake; fail with 503 rather than hang forever
+    c.Timeout = TimeSpan.FromSeconds(70);
+});
+
 var jwtSecret = builder.Configuration["Jwt:Secret"]!;
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "landadoc";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

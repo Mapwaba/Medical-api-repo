@@ -61,6 +61,10 @@ services:
         fromDatabase:
           name: landadoc-db
           property: connectionString
+      # The Patients page asks Appointment which patients a doctor has seen.
+      # Free services can't receive private-network traffic, so this uses the public URL.
+      - key: Services__AppointmentBaseUrl
+        value: https://landadoc-appointment.onrender.com
 
   - type: web
     name: landadoc-appointment

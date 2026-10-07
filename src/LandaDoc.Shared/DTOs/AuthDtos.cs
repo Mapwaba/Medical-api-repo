@@ -34,3 +34,9 @@ DateOnly? DateOfBirth, string? Gender
 );
 
 public record UserCountsDto(int PatientCount, int DoctorCount);
+
+// What a doctor sees about one of their patients (Doctor app's Patients page and patient file)
+public record PatientContactDto(
+    Guid Id, string FirstName, string LastName, string Email, string? Phone,
+    DateOnly? DateOfBirth, string? Gender
+);

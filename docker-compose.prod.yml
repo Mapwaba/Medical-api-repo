@@ -94,6 +94,7 @@ services:
     environment:
       <<: *service-env-defaults
       ConnectionStrings__Conx: Host=postgres;Port=5432;Database=landadoc_db;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Services__AppointmentBaseUrl: http://appointment:8080
     depends_on:
       rabbitmq:
         condition: service_healthy
