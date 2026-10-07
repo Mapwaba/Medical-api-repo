@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using LandaDoc.Admin.Data;
 using LandaDoc.Shared.DTOs;
+using LandaDoc.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,7 @@ public class DoctorServicesController(AdminDbContext db) : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var profileId = await MyProfileIdAsync();
         if (profileId is null) return NotFound();
+        if (!await IsApprovedAsync()) return NotApproved();
 
         var service = new Models.DoctorService { DoctorProfileId = profileId.Value };
         Apply(service, req);
@@ -46,6 +48,7 @@ public class DoctorServicesController(AdminDbContext db) : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var service = await FindMineAsync(id);
         if (service is null) return NotFound();
+        if (!await IsApprovedAsync()) return NotApproved();
 
         Apply(service, req);
         service.UpdatedAt = DateTime.UtcNow;
@@ -58,6 +61,7 @@ public class DoctorServicesController(AdminDbContext db) : ControllerBase
     {
         var service = await FindMineAsync(id);
         if (service is null) return NotFound();
+        if (!await IsApprovedAsync()) return NotApproved();
 
         db.DoctorServices.Remove(service);
         await db.SaveChangesAsync();
@@ -69,6 +73,16 @@ public class DoctorServicesController(AdminDbContext db) : ControllerBase
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         return await db.DoctorProfiles.Where(d => d.UserId == userId).Select(d => (Guid?)d.Id).FirstOrDefaultAsync();
     }
+
+    // Doctors waiting for approval (or suspended) can look but not change their services
+    private Task<bool> IsApprovedAsync()
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        return db.DoctorProfiles.AnyAsync(d => d.UserId == userId && d.Status == DoctorApprovalStatus.Approved);
+    }
+
+    private ObjectResult NotApproved() =>
+        Problem("Your account must be approved by an administrator first.", statusCode: StatusCodes.Status403Forbidden);
 
     private async Task<Models.DoctorService?> FindMineAsync(Guid id)
     {

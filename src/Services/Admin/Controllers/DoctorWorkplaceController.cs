@@ -2,6 +2,7 @@ using System.Security.Claims;
 using LandaDoc.Admin.Data;
 using LandaDoc.Admin.Services;
 using LandaDoc.Shared.DTOs;
+using LandaDoc.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +37,8 @@ public class DoctorWorkplaceController(AdminDbContext db, IClinicService clinics
         var profile = await MyProfileAsync();
         var clinic = profile?.Clinics.FirstOrDefault(c => c.Id == clinicId);
         if (clinic is null) return NotFound();
+        // A doctor waiting for approval (or suspended) can't change a clinic that others rely on
+        if (profile!.Status != DoctorApprovalStatus.Approved) return NotApproved();
 
         clinic.Address = Blank(req.Address);
         clinic.Phone = Blank(req.Phone);
@@ -56,6 +59,9 @@ public class DoctorWorkplaceController(AdminDbContext db, IClinicService clinics
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         return await db.DoctorProfiles.Include(d => d.Clinics).FirstOrDefaultAsync(d => d.UserId == userId);
     }
+
+    private ObjectResult NotApproved() =>
+        Problem("Your account must be approved by an administrator first.", statusCode: StatusCodes.Status403Forbidden);
 
     private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
