@@ -29,9 +29,9 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
             callerId, req.FirstName, req.LastName, req.Specialty,
             req.Bio, req.LicenseNumber, req.ClinicIds, req.ConsultationFee);
 
-        // Self-registered doctors go live for patients straight away unless the host
-        // turns admin review back on with Doctors__RequireApproval=true.
-        var autoApprove = !config.GetValue<bool>("Doctors:RequireApproval");
+        // Self-registered doctors wait as Pending until an admin approves them on the
+        // Admin Doctors page. Doctors__RequireApproval=false makes them go live straight away.
+        var autoApprove = !config.GetValue("Doctors:RequireApproval", true);
         var result = await doctors.CreateAsync(fullReq, autoApprove);
         return result.Status switch
         {

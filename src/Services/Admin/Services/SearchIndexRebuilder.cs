@@ -3,7 +3,7 @@ using LandaDoc.Shared.Models;
 namespace LandaDoc.Admin.Services;
 
 // Once the app (and so the MassTransit bus) has started, approves any pending
-// doctors (unless Doctors:RequireApproval is set) and re-sends every approved
+// doctors (only when Doctors:RequireApproval is false) and re-sends every approved
 // doctor so the Search service's list is rebuilt after a Redis wipe or lost messages.
 public class SearchIndexRebuilder(
     IServiceScopeFactory scopes,
@@ -26,9 +26,9 @@ public class SearchIndexRebuilder(
             using var scope = scopes.CreateScope();
             var doctors = scope.ServiceProvider.GetRequiredService<IDoctorProfileService>();
 
-            // Profiles saved while self-registered doctors still needed review are
-            // stuck in Pending; approve them unless review has been turned back on.
-            if (!config.GetValue<bool>("Doctors:RequireApproval"))
+            // Pending doctors wait for an admin by default. Only when review is turned
+            // off (Doctors__RequireApproval=false) are leftover Pending profiles approved here.
+            if (!config.GetValue("Doctors:RequireApproval", true))
             {
                 var pending = await doctors.GetAllAsync(DoctorApprovalStatus.Pending);
                 foreach (var profile in pending)
