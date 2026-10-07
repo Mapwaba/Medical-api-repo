@@ -43,8 +43,13 @@ public record CreateOwnDoctorProfileRequest(
     [Range(0, 100000)] decimal ConsultationFee
 );
 
+// null fields are left unchanged. The trailing ones have defaults so older callers still compile.
 public record UpdateOwnDoctorProfileRequest(
     string? Bio,
     List<Guid>? ClinicIds,
-    [Range(0, 100000)] decimal? ConsultationFee
+    [Range(0, 100000)] decimal? ConsultationFee,
+    [StringLength(100, MinimumLength = 1)] string? FirstName = null,
+    [StringLength(100, MinimumLength = 1)] string? LastName = null,
+    [StringLength(100, MinimumLength = 1)] string? Specialty = null,
+    [StringLength(100)] string? LicenseNumber = null
 );

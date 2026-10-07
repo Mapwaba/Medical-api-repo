@@ -59,6 +59,10 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
         var profile = await db.DoctorProfiles.Include(d => d.Clinics).FirstOrDefaultAsync(d => d.UserId == userId);
         if (profile is null) return new DoctorProfileResult(DoctorProfileResultStatus.NotFound);
 
+        if (!string.IsNullOrWhiteSpace(req.FirstName)) profile.FirstName = req.FirstName.Trim();
+        if (!string.IsNullOrWhiteSpace(req.LastName)) profile.LastName = req.LastName.Trim();
+        if (!string.IsNullOrWhiteSpace(req.Specialty)) profile.Specialty = req.Specialty.Trim();
+        if (req.LicenseNumber is not null) profile.LicenseNumber = string.IsNullOrWhiteSpace(req.LicenseNumber) ? null : req.LicenseNumber.Trim();
         if (req.Bio is not null) profile.Bio = req.Bio;
         if (req.ClinicIds is not null)
         {
@@ -71,6 +75,12 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
         profile.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
+
+        // Re-send a live doctor to Search (and Payment, for the fee) so patients see the changes
+        // straight away; this event is how those services learn about approved doctors.
+        if (profile.Status == DoctorApprovalStatus.Approved)
+            await PublishApprovedEventAsync(profile);
+
         return new DoctorProfileResult(DoctorProfileResultStatus.Success, profile);
     }
 

@@ -45,6 +45,31 @@ public class AuthController(IAuthService auth) : ControllerBase
         return user is null ? NotFound() : Ok(user);
     }
 
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMe([FromBody] UpdateMeRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var user = await auth.UpdateMeAsync(userId, req);
+        return user is null ? NotFound() : Ok(user);
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var result = await auth.ChangePasswordAsync(userId, req);
+        return result.Status switch
+        {
+            AuthResultStatus.InvalidCredentials => BadRequest(new { error = "Current password is incorrect" }),
+            AuthResultStatus.Success => Ok(result.Response),
+            _ => Problem()
+        };
+    }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest req)
     {

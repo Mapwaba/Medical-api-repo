@@ -40,3 +40,15 @@ public record PatientContactDto(
     Guid Id, string FirstName, string LastName, string Email, string? Phone,
     DateOnly? DateOfBirth, string? Gender
 );
+
+// A signed-in user editing their own account (name and phone; email stays the login)
+public record UpdateMeRequest(
+    [Required, StringLength(100)] string FirstName,
+    [Required, StringLength(100)] string LastName,
+    [StringLength(30)] string? Phone
+);
+
+public record ChangePasswordRequest(
+    [Required] string CurrentPassword,
+    [Required, MinLength(8), StringLength(200)] string NewPassword
+);

@@ -137,6 +137,38 @@ public class AuthService(
         return new UserCountsDto(patientCount, doctorCount);
     }
 
+    public async Task<UserDto?> UpdateMeAsync(Guid userId, UpdateMeRequest req)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return null;
+
+        user.FirstName = req.FirstName.Trim();
+        user.LastName = req.LastName.Trim();
+        user.Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim();
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return MapToDto(user);
+    }
+
+    public async Task<AuthResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest req)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null || !hasher.Verify(req.CurrentPassword, user.PasswordHash))
+            return new AuthResult(AuthResultStatus.InvalidCredentials);
+
+        user.PasswordHash = hasher.Hash(req.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        // Sign out every other session (other browsers/devices) by revoking their refresh
+        // tokens, then hand this session fresh tokens so the user stays logged in here.
+        await db.RefreshTokens
+            .Where(r => r.UserId == userId && !r.IsRevoked)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.IsRevoked, true));
+
+        var response = await IssueTokensAsync(user, includeProfile: true); // also saves the new hash
+        return new AuthResult(AuthResultStatus.Success, response);
+    }
+
     private async Task<AuthResponse> IssueTokensAsync(User user, bool includeProfile)
     {
         var accessToken = tokens.GenerateAccessToken(user.Id, user.Email, user.Role.ToString());

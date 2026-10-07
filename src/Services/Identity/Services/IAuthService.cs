@@ -22,6 +22,9 @@ public interface IAuthService
     Task<AuthResult> RegisterPatientAsync(RegisterPatientRequest req);
     Task<AuthResult> RegisterDoctorAsync(RegisterDoctorRequest req);
     Task<UserDto?> GetMeAsync(Guid userId);
+    Task<UserDto?> UpdateMeAsync(Guid userId, UpdateMeRequest req);
+    // InvalidCredentials when the current password is wrong; on success, fresh tokens for this session
+    Task<AuthResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest req);
     Task<List<UserDto>> GetUsersAsync(UserRole? role);
     Task<UserCountsDto> GetUserCountsAsync();
 }
