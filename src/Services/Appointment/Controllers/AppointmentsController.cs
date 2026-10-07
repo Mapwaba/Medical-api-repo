@@ -45,7 +45,14 @@ public class AppointmentsController(IAppointmentService appointments) : Controll
     public async Task<IActionResult> GetById(Guid id)
     {
         var appt = await appointments.GetByIdAsync(id);
-        return appt is null ? NotFound() : Ok(MapToDto(appt));
+        if (appt is null) return NotFound();
+
+        // Only the people involved: the patient, their doctor, or the family member who booked it
+        var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (callerId != appt.PatientId && callerId != appt.DoctorId && callerId != appt.BookedByUserId)
+            return Forbid();
+
+        return Ok(MapToDto(appt));
     }
 
     [HttpPatch("{id:guid}/complete")]
