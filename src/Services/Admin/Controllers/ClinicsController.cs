@@ -21,6 +21,14 @@ public class ClinicsController(IClinicService clinics) : ControllerBase
         return clinic is null ? NotFound() : Ok(MapToDto(clinic));
     }
 
+    // The Doctor app's registration form lets a not-yet-registered doctor pick their clinics,
+    // so it needs this list before login. It returns only id, name and city (which patients
+    // already see in search results); the full clinic details above still require a login.
+    [HttpGet("options")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetOptions() =>
+        Ok((await clinics.GetAllAsync()).Select(c => new ClinicOptionDto(c.Id, c.Name, c.City)));
+
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] CreateClinicRequest req)

@@ -19,6 +19,9 @@ public record UpdateClinicRequest(
     string? Phone
 );
 
+// Just enough to pick a clinic on the public doctor registration form — no phone or address.
+public record ClinicOptionDto(Guid Id, string Name, string City);
+
 public record ClinicDto(
     Guid Id, string Name, ClinicType Type, string? Address, string City, string? Phone,
     DateTime CreatedAt
