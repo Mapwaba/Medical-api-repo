@@ -259,3 +259,7 @@ services:
         sync: false
       - key: S3__BucketName
         value: landadoc-documents
+      # Document access checks ask Appointment whether a doctor has seen the patient.
+      # Free services can't receive private-network traffic, so this uses the public URL.
+      - key: Services__AppointmentBaseUrl
+        value: https://landadoc-appointment.onrender.com

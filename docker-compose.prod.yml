@@ -251,6 +251,7 @@ services:
       S3__AccessKey: ${MINIO_ROOT_USER}
       S3__SecretKey: ${MINIO_ROOT_PASSWORD}
       S3__BucketName: landadoc-documents
+      Services__AppointmentBaseUrl: http://appointment:8080
     depends_on:
       rabbitmq:
         condition: service_healthy

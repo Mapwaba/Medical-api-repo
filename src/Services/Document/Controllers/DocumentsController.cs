@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Amazon.S3;
 using Amazon.S3.Model;
 using LandaDoc.Document.Data;
+using LandaDoc.Document.Services;
 using LandaDoc.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,9 +10,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LandaDoc.Document.Controllers;
 
+// A patient's documents can be read or added only by that patient and by doctors who have a
+// (non-cancelled) appointment with them. Every endpoint below goes through CheckAccessAsync.
 [ApiController]
 [Route("api/[controller]")]
-public class DocumentsController(DocumentDbContext db, IAmazonS3 s3, IConfiguration cfg) : ControllerBase
+public class DocumentsController(
+    DocumentDbContext db, IAmazonS3 s3, IConfiguration cfg, IAppointmentAccessClient appointments) : ControllerBase
 {
     private string BucketName => cfg["S3:BucketName"]!;
 
@@ -28,9 +32,9 @@ public class DocumentsController(DocumentDbContext db, IAmazonS3 s3, IConfigurat
         if (file.Length == 0) return BadRequest(new { error = "File is empty" });
 
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var callerRole = User.FindFirstValue(ClaimTypes.Role);
-        // Patients may only upload their own documents; doctors may upload on a patient's behalf.
-        if (callerRole == "Patient" && callerId != patientId) return Forbid();
+        // Patients upload their own documents; doctors upload for patients they've seen.
+        var denied = await CheckAccessAsync(patientId);
+        if (denied is not null) return denied;
 
         var storageKey = $"{patientId}/{Guid.NewGuid()}-{file.FileName}";
         await using (var stream = file.OpenReadStream())
@@ -67,7 +71,8 @@ public class DocumentsController(DocumentDbContext db, IAmazonS3 s3, IConfigurat
     public async Task<IActionResult> GetById(Guid id)
     {
         var doc = await db.Documents.FirstOrDefaultAsync(d => d.Id == id);
-        return doc is null ? NotFound() : Ok(MapToDto(doc));
+        if (doc is null) return NotFound();
+        return await CheckAccessAsync(doc.PatientId) ?? Ok(MapToDto(doc));
     }
 
     [HttpGet]
@@ -76,11 +81,27 @@ public class DocumentsController(DocumentDbContext db, IAmazonS3 s3, IConfigurat
     {
         if (patientId is null && appointmentId is null) return BadRequest();
 
+        if (patientId is not null)
+        {
+            var denied = await CheckAccessAsync(patientId.Value);
+            if (denied is not null) return denied;
+        }
+
         var docs = await db.Documents
             .Where(d => (patientId == null || d.PatientId == patientId) &&
                         (appointmentId == null || d.AppointmentId == appointmentId))
             .OrderByDescending(d => d.CreatedAt)
             .ToListAsync();
+
+        // Asked by appointment only: the caller must have access to every patient in the result
+        if (patientId is null)
+        {
+            foreach (var docPatientId in docs.Select(d => d.PatientId).Distinct())
+            {
+                var denied = await CheckAccessAsync(docPatientId);
+                if (denied is not null) return denied;
+            }
+        }
         return Ok(docs.Select(MapToDto));
     }
 
@@ -90,6 +111,8 @@ public class DocumentsController(DocumentDbContext db, IAmazonS3 s3, IConfigurat
     {
         var doc = await db.Documents.FirstOrDefaultAsync(d => d.Id == id);
         if (doc is null) return NotFound();
+        var denied = await CheckAccessAsync(doc.PatientId);
+        if (denied is not null) return denied;
 
         var url = s3.GetPreSignedURL(new GetPreSignedUrlRequest
         {
@@ -98,6 +121,23 @@ public class DocumentsController(DocumentDbContext db, IAmazonS3 s3, IConfigurat
             Expires = DateTime.UtcNow.AddMinutes(15)
         });
         return Ok(new { url });
+    }
+
+    // null when the caller may access this patient's documents, otherwise the response to return
+    private async Task<IActionResult?> CheckAccessAsync(Guid patientId)
+    {
+        var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (callerId == patientId) return null;
+        if (!User.IsInRole("Doctor")) return Forbid();
+
+        var token = Request.Headers.Authorization.ToString().Replace("Bearer ", "");
+        return await appointments.DoctorHasSeenPatientAsync(patientId, token) switch
+        {
+            true => null,
+            false => Forbid(),
+            // Fail closed: if the Appointment service can't confirm, don't hand out the documents
+            null => Problem("Couldn't verify access right now. Please try again.", statusCode: StatusCodes.Status503ServiceUnavailable),
+        };
     }
 
     private static DocumentDto MapToDto(Models.Document d) => new(

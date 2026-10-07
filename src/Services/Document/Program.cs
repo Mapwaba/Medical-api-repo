@@ -3,6 +3,7 @@ using System.Text;
 using Amazon.S3;
 using LandaDoc.Document.Consumers;
 using LandaDoc.Document.Data;
+using LandaDoc.Document.Services;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 builder.Services.AddAuthorization();
+
+// Document access checks ask the Appointment service whether a doctor has seen the patient
+builder.Services.AddHttpClient<IAppointmentAccessClient, AppointmentAccessClient>(c =>
+{
+    c.BaseAddress = new Uri(builder.Configuration["Services:AppointmentBaseUrl"] ?? "http://localhost:5001");
+    // Render's free services can take ~60s to wake; fail with 503 rather than hang the request forever
+    c.Timeout = TimeSpan.FromSeconds(70);
+});
 
 builder.Services.AddMassTransit(x =>
 {
