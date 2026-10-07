@@ -13,6 +13,7 @@ public class DoctorApprovedConsumer(IdentityDbContext db) : IConsumer<DoctorAppr
         if (user is null) return;
 
         user.IsApproved = true;
+        user.IsActive = true; // re-approving a suspended doctor must undo the suspension, or they can't log in
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
     }
