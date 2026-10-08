@@ -57,8 +57,19 @@ public class DocumentsController(
         {
             // Answer properly instead of letting the request crash: a crashed request reaches the
             // browser without its CORS headers, so the app only sees "failed to fetch".
-            log.LogError(ex, "Couldn't store an upload for patient {PatientId} (appointment {AppointmentId}, {SizeBytes} bytes, {ContentType})",
-                patientId, appointmentId, file.Length, file.ContentType);
+            // Everything needed to diagnose it on ONE line (Render shows the stack trace on separate
+            // lines that are easy to miss): the storage's own error code and HTTP status, its message,
+            // and which storage host and bucket were used. The access keys are never logged.
+            var s3Error = ex as AmazonS3Exception;
+            var root = ex.GetBaseException();   // for network errors, the innermost cause says the most
+            log.LogError(ex,
+                "Couldn't store an upload for patient {PatientId} (appointment {AppointmentId}, {SizeBytes} bytes, {ContentType}). " +
+                "Storage said: {StorageErrorCode} (HTTP {StorageStatus}) {StorageMessage} [{ExceptionType}] - host {StorageHost}, bucket {Bucket}",
+                patientId, appointmentId, file.Length, file.ContentType,
+                s3Error?.ErrorCode ?? "no error code", s3Error is null ? "-" : ((int)s3Error.StatusCode).ToString(),
+                s3Error?.Message ?? root.Message, (s3Error ?? root).GetType().Name,
+                Uri.TryCreate(cfg["S3:ServiceUrl"], UriKind.Absolute, out var u) ? u.Host + u.AbsolutePath.TrimEnd('/') : "(S3:ServiceUrl not set)",
+                BucketName);
             return StatusCode(StatusCodes.Status502BadGateway, new { error = "The file couldn't be stored. Please try again." });
         }
 
