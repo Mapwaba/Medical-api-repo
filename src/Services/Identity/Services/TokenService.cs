@@ -2,10 +2,11 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using LandaDoc.ServiceDefaults;
 namespace LandaDoc.Identity.Services;
 public class TokenService(IConfiguration cfg) : ITokenService
 {
-private string Secret => cfg["Jwt:Secret"]!;
+private string Secret => cfg.GetJwtSecret();
 private string Issuer => cfg["Jwt:Issuer"] ?? "landadoc";
 // Access token — short lived (15 min)
 public string GenerateAccessToken(Guid userId, string email, string role)

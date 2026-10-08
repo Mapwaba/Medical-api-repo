@@ -63,9 +63,14 @@ Put the actual rules on the DTO with DataAnnotations (`[Required]`, `[EmailAddre
 
 ## Secrets
 
-- Local dev: `dotnet user-secrets set "Jwt:Secret" "..."` / `"ConnectionStrings:Conx"` — run
-  `dotnet user-secrets init` in the service directory first if `UserSecretsId` isn't in the
-  csproj yet.
+- Local dev: run `tools/set-dev-secrets.ps1 -ConnectionString "..."` once. It puts the same
+  `Jwt:Secret` (a fresh random key) and your Postgres connection into every service's
+  user-secrets. For a single value, `dotnet user-secrets set "Jwt:Secret" "..."` in the service
+  directory; every service already has a `UserSecretsId`, so give a new service one too
+  (`dotnet user-secrets init`).
+- Read the token key with `builder.Configuration.GetJwtSecret()` (LandaDoc.ServiceDefaults), not
+  `["Jwt:Secret"]`: it stops the service at startup with instructions when the key is missing or
+  shorter than 32 bytes.
 - Every other environment: environment variables (`Jwt__Secret`, `ConnectionStrings__Conx`) —
   ASP.NET Core's config layering picks these up automatically, no code change needed.
 - Committed `appsettings.json` should never hold a real secret value — leave the key present

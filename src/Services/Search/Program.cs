@@ -16,7 +16,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 
 builder.Services.AddScoped<ISearchIndexService, SearchIndexService>();
 
-var jwtSecret = builder.Configuration["Jwt:Secret"]!;
+var jwtSecret = builder.Configuration.GetJwtSecret();
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "landadoc";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>

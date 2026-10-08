@@ -22,7 +22,7 @@ builder.Services.Configure<MokoAfrikaOptions>(builder.Configuration.GetSection("
 builder.Services.AddHttpClient<IMokoAfrikaClient, MokoAfrikaClient>(c =>
     c.BaseAddress = new Uri(builder.Configuration["MokoAfrika:BaseUrl"]!));
 
-var jwtSecret = builder.Configuration["Jwt:Secret"]!;
+var jwtSecret = builder.Configuration.GetJwtSecret();
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "landadoc";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>

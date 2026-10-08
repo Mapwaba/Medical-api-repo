@@ -18,7 +18,7 @@ builder.Services.AddScoped<IClinicService, ClinicService>();
 builder.Services.AddScoped<IDoctorProfileService, DoctorProfileService>();
 builder.Services.AddHostedService<SearchIndexRebuilder>();
 
-var jwtSecret = builder.Configuration["Jwt:Secret"]!;
+var jwtSecret = builder.Configuration.GetJwtSecret();
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "landadoc";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>
