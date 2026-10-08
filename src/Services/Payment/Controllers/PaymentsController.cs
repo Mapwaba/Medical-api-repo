@@ -227,6 +227,8 @@ public class PaymentsController(
         if (insurer is null)
             return BadRequest(new { error = "This insurer isn't accepted on LandaDoc" });
 
+        // The claim covers the full consultation fee; the insurer's name is copied so the claim
+        // still reads correctly if an admin renames the insurer later
         var claim = new Models.InsuranceClaim
         {
             PaymentId = payment.Id,
@@ -242,6 +244,7 @@ public class PaymentsController(
         db.InsuranceClaims.Add(claim);
         await db.SaveChangesAsync();
 
+        // Appointment stops the unpaid-booking expiry; Notification alerts the doctor
         await bus.Publish(new InsuranceClaimSubmittedEvent(
             payment.AppointmentId, payment.DoctorId, payment.PatientId, insurer.Name, DateTime.UtcNow));
 

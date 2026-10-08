@@ -45,6 +45,7 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         });
 
+        // Partner insurers, managed by admins (names are unique)
         mb.Entity<Models.Insurer>(e =>
         {
             e.ToTable("insurers");
@@ -58,6 +59,8 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             e.HasIndex(x => x.Name).IsUnique();
         });
 
+        // Insurance claims: updated in place as they move through review and reconciliation,
+        // looked up by appointment (patient's page) and by doctor (doctor's Payments page)
         mb.Entity<Models.InsuranceClaim>(e =>
         {
             e.ToTable("insurance_claims");

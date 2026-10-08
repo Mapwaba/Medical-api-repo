@@ -42,6 +42,10 @@ public class PendingPaymentExpiryService(
         var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
         var bus = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
+        // A Pending booking expires when its time to pay runs out:
+        //  - normally Booking:UnpaidExpiryMinutes after it was made;
+        //  - after a declined insurance claim, at PaymentDueAt (the patient gets longer);
+        //  - never while an insurance claim is waiting for the doctor's review.
         var now = DateTime.UtcNow;
         var cutoff = now.AddMinutes(-expiryMinutes);
         var expired = await db.Appointments

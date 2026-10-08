@@ -69,6 +69,9 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
         claim.Status = InsuranceClaimStatus.Approved;
         claim.UpdatedAt = DateTime.UtcNow;
 
+        // The ledger row is what tells the rest of the system "this booking is paid for".
+        // ProviderRef ties it back to the claim (the doctor's Payments page uses that link).
+
         // Insert a new Completed row (immutable ledger — no updates)
         db.Payments.Add(new Models.Payment
         {
@@ -84,6 +87,7 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
         });
         await db.SaveChangesAsync();
 
+        // Appointment confirms the booking; Notification tells the patient their cover was accepted
         await bus.Publish(new PaymentCompletedEvent(
             claim.AppointmentId, claim.DoctorId, claim.PatientId, DateTime.UtcNow, PaymentProvider.Insurance));
         return Ok(MapToDto(claim));
@@ -105,6 +109,7 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
         claim.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
+        // Appointment gives the patient time to pay another way; Notification tells them why
         await bus.Publish(new InsuranceClaimDeclinedEvent(
             claim.AppointmentId, claim.DoctorId, claim.PatientId, claim.Note, DateTime.UtcNow));
         return Ok(MapToDto(claim));
@@ -123,6 +128,9 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
     public Task<IActionResult> Reject(Guid id, [FromBody] ClaimActionRequest req) =>
         ReconcileAsync(id, InsuranceClaimStatus.Rejected, req);
 
+    // Shared by settle and reject: only an approved claim can be closed, and the note is stored
+    // as the insurer's reference (settled) or as the reason (rejected). No events — this is
+    // bookkeeping between the doctor and the insurer; the patient's booking doesn't change.
     private async Task<IActionResult> ReconcileAsync(Guid id, InsuranceClaimStatus outcome, ClaimActionRequest req)
     {
         var claim = await db.InsuranceClaims.FindAsync(id);

@@ -12,6 +12,7 @@ namespace LandaDoc.Payment.Controllers;
 [Route("api/[controller]")]
 public class InsurersController(PaymentDbContext db) : ControllerBase
 {
+    // Admins get every insurer (to manage the list); everyone else only the active ones
     [HttpGet]
     [Authorize]
     public async Task<IActionResult> GetAll()
@@ -23,6 +24,7 @@ public class InsurersController(PaymentDbContext db) : ControllerBase
         return Ok(insurers.Select(MapToDto));
     }
 
+    // Add a partner. 409 if another insurer already has this name (ignoring case).
     [HttpPost]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] SaveInsurerRequest req)
@@ -45,6 +47,8 @@ public class InsurersController(PaymentDbContext db) : ControllerBase
         return Ok(MapToDto(insurer));
     }
 
+    // Edit a partner, or switch it off (IsActive = false) so patients stop seeing it.
+    // Insurers are never deleted: past claims still point at them.
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveInsurerRequest req)
@@ -67,6 +71,7 @@ public class InsurersController(PaymentDbContext db) : ControllerBase
         return Ok(MapToDto(insurer));
     }
 
+    // Case-insensitive, so "SONAS" and "Sonas" can't both exist
     private Task<bool> NameTakenAsync(string name, Guid? exceptId) =>
         db.Insurers.AnyAsync(i => i.Name.ToLower() == name.ToLower() && i.Id != exceptId);
 

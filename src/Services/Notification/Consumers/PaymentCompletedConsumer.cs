@@ -31,6 +31,7 @@ public class PaymentCompletedConsumer(
         await publisher.PushPendingCountAsync(msg.PatientId);
         await publisher.PushPendingCountAsync(msg.DoctorId);
 
+        // Insurance: nothing was charged, so send "cover accepted" instead of a payment receipt
         if (msg.Provider == PaymentProvider.Insurance)
         {
             await NotifyClaimApprovedAsync(msg);
