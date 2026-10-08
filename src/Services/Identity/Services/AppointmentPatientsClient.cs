@@ -3,18 +3,18 @@ using System.Text.Json;
 
 namespace LandaDoc.Identity.Services;
 
-// Which patients has this doctor had a (non-cancelled) appointment with? Asks the Appointment
+// Which patients has this doctor had an appointment with (by default not counting cancelled ones)? Asks the Appointment
 // service for the doctor's own appointments, forwarding the caller's JWT (no service-to-service
 // credential exists yet — same approach as the Review and Document services).
 public interface IAppointmentPatientsClient
 {
     // null when the Appointment service couldn't be reached: callers must not guess
-    Task<HashSet<Guid>?> GetSeenPatientIdsAsync(string bearerToken);
+    Task<HashSet<Guid>?> GetSeenPatientIdsAsync(string bearerToken, bool includeCancelled = false);
 }
 
 public class AppointmentPatientsClient(HttpClient http, ILogger<AppointmentPatientsClient> logger) : IAppointmentPatientsClient
 {
-    public async Task<HashSet<Guid>?> GetSeenPatientIdsAsync(string bearerToken)
+    public async Task<HashSet<Guid>?> GetSeenPatientIdsAsync(string bearerToken, bool includeCancelled = false)
     {
         try
         {
@@ -32,7 +32,7 @@ public class AppointmentPatientsClient(HttpClient http, ILogger<AppointmentPatie
             var ids = new HashSet<Guid>();
             foreach (var appt in json.RootElement.EnumerateArray())
             {
-                if (IsCancelled(appt) || !appt.TryGetProperty("patientId", out var p)) continue;
+                if ((!includeCancelled && IsCancelled(appt)) || !appt.TryGetProperty("patientId", out var p)) continue;
                 ids.Add(p.GetGuid());
             }
             return ids;
