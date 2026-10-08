@@ -8,7 +8,7 @@ namespace LandaDoc.Appointment.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AppointmentsController(IAppointmentService appointments) : ControllerBase
+public class AppointmentsController(IAppointmentService appointments, ILogger<AppointmentsController> log) : ControllerBase
 {
     [HttpPost]
     [Authorize(Roles = "Patient")]
@@ -18,6 +18,17 @@ public class AppointmentsController(IAppointmentService appointments) : Controll
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
         var result = await appointments.CreateAsync(callerId, req);
+        if (result.Status == CreateAppointmentResultStatus.Success)
+        {
+            var a = result.Appointment!;
+            log.LogInformation("Appointment {AppointmentId} (ref {RefNumber}) booked by {UserId} for patient {PatientId} with doctor {DoctorId} at {SlotStart}",
+                a.Id, a.RefNumber, callerId, a.PatientId, a.DoctorId, a.SlotStart);
+        }
+        else
+        {
+            log.LogInformation("Booking by {UserId} with doctor {DoctorId} at {SlotStart} refused: {Reason}",
+                callerId, req.DoctorId, req.SlotStart, result.Status);
+        }
         return result.Status switch
         {
             CreateAppointmentResultStatus.Forbidden => Forbid(),
@@ -61,6 +72,8 @@ public class AppointmentsController(IAppointmentService appointments) : Controll
     {
         var doctorId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await appointments.CompleteAsync(id, doctorId);
+        if (result.Status == CompleteAppointmentResultStatus.Success)
+            log.LogInformation("Appointment {AppointmentId} marked completed by doctor {DoctorId}", id, doctorId);
         return result.Status switch
         {
             CompleteAppointmentResultStatus.NotFound => NotFound(),
@@ -78,6 +91,11 @@ public class AppointmentsController(IAppointmentService appointments) : Controll
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var patientId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await appointments.RescheduleAsync(id, patientId, req);
+        if (result.Status == RescheduleAppointmentResultStatus.Success)
+            log.LogInformation("Appointment {AppointmentId} rescheduled by {UserId} to {SlotStart}", id, patientId, req.SlotStart);
+        else
+            log.LogInformation("Reschedule of appointment {AppointmentId} by {UserId} to {SlotStart} refused: {Reason}",
+                id, patientId, req.SlotStart, result.Status);
         return result.Status switch
         {
             RescheduleAppointmentResultStatus.NotFound => NotFound(),

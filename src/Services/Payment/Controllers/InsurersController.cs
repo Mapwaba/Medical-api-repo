@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using LandaDoc.Payment.Data;
 using LandaDoc.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -10,7 +11,7 @@ namespace LandaDoc.Payment.Controllers;
 // active ones (patients choose from them at checkout).
 [ApiController]
 [Route("api/[controller]")]
-public class InsurersController(PaymentDbContext db) : ControllerBase
+public class InsurersController(PaymentDbContext db, ILogger<InsurersController> log) : ControllerBase
 {
     // Admins get every insurer (to manage the list); everyone else only the active ones
     [HttpGet]
@@ -44,6 +45,8 @@ public class InsurersController(PaymentDbContext db) : ControllerBase
         };
         db.Insurers.Add(insurer);
         await db.SaveChangesAsync();
+        log.LogInformation("Insurer {InsurerId} ({InsurerName}) added by admin {AdminId}, active: {IsActive}",
+            insurer.Id, insurer.Name, CallerId(), insurer.IsActive);
         return Ok(MapToDto(insurer));
     }
 
@@ -68,12 +71,16 @@ public class InsurersController(PaymentDbContext db) : ControllerBase
         insurer.Email = Clean(req.Email);
         insurer.IsActive = req.IsActive;
         await db.SaveChangesAsync();
+        log.LogInformation("Insurer {InsurerId} ({InsurerName}) updated by admin {AdminId}, active: {IsActive}",
+            insurer.Id, insurer.Name, CallerId(), insurer.IsActive);
         return Ok(MapToDto(insurer));
     }
 
     // Case-insensitive, so "SONAS" and "Sonas" can't both exist
     private Task<bool> NameTakenAsync(string name, Guid? exceptId) =>
         db.Insurers.AnyAsync(i => i.Name.ToLower() == name.ToLower() && i.Id != exceptId);
+
+    private string? CallerId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

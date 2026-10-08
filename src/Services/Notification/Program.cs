@@ -1,3 +1,4 @@
+using LandaDoc.ServiceDefaults;
 using LandaDoc.Shared.Data;
 using System.Text;
 using Hangfire;
@@ -12,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddLandaDocLogging("Notification");
 
 builder.Services.AddDbContext<NotificationDbContext>(o =>
     o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
@@ -112,6 +114,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+app.UseLandaDocRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {

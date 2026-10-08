@@ -15,7 +15,7 @@ namespace LandaDoc.Payment.Controllers;
 // reconciles them with the insurer (settled / rejected).
 [ApiController]
 [Route("api/insurance-claims")]
-public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus) : ControllerBase
+public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus, ILogger<InsuranceClaimsController> log) : ControllerBase
 {
     // Every claim on the calling doctor's appointments, newest first
     [HttpGet("doctor/me")]
@@ -90,6 +90,8 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
         // Appointment confirms the booking; Notification tells the patient their cover was accepted
         await bus.Publish(new PaymentCompletedEvent(
             claim.AppointmentId, claim.DoctorId, claim.PatientId, DateTime.UtcNow, PaymentProvider.Insurance));
+        log.LogInformation("Insurance claim {ClaimId} approved by doctor {DoctorId}; appointment {AppointmentId} counts as paid ({Amount} owed by insurer {InsurerId})",
+            claim.Id, claim.DoctorId, claim.AppointmentId, claim.Amount, claim.InsurerId);
         return Ok(MapToDto(claim));
     }
 
@@ -112,6 +114,9 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
         // Appointment gives the patient time to pay another way; Notification tells them why
         await bus.Publish(new InsuranceClaimDeclinedEvent(
             claim.AppointmentId, claim.DoctorId, claim.PatientId, claim.Note, DateTime.UtcNow));
+        // The reason is free text the doctor typed, so it stays out of the logs (it's on the claim)
+        log.LogInformation("Insurance claim {ClaimId} declined by doctor {DoctorId}; appointment {AppointmentId} must be paid another way",
+            claim.Id, claim.DoctorId, claim.AppointmentId);
         return Ok(MapToDto(claim));
     }
 
@@ -144,6 +149,8 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
         else claim.Note = Clean(req.Note);
         claim.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        log.LogInformation("Insurance claim {ClaimId} marked {Outcome} by doctor {DoctorId} (appointment {AppointmentId}, {Amount}, insurer {InsurerId})",
+            claim.Id, outcome, claim.DoctorId, claim.AppointmentId, claim.Amount, claim.InsurerId);
         return Ok(MapToDto(claim));
     }
 

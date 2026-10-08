@@ -9,7 +9,7 @@ namespace LandaDoc.Admin.Controllers;
 [ApiController]
 [Route("api/doctors/me")]
 [Authorize(Roles = "Doctor")]
-public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration config) : ControllerBase
+public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration config, ILogger<DoctorSelfController> log) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get()
@@ -33,6 +33,9 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
         // Admin Doctors page. Doctors__RequireApproval=false makes them go live straight away.
         var autoApprove = !config.GetValue("Doctors:RequireApproval", true);
         var result = await doctors.CreateAsync(fullReq, autoApprove);
+        if (result.Status == DoctorProfileResultStatus.Success)
+            log.LogInformation("Doctor {UserId} created their profile {DoctorProfileId} ({Status})",
+                callerId, result.Profile!.Id, result.Profile.Status);
         return result.Status switch
         {
             DoctorProfileResultStatus.AlreadyExists => Conflict(new { error = "You already have a profile" }),
@@ -46,7 +49,13 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
     public async Task<IActionResult> Update([FromBody] UpdateOwnDoctorProfileRequest req)
     {
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var existing = await doctors.GetByUserIdAsync(callerId);
+        var before = existing is null ? null : AdminDoctorsController.MapToDto(existing);   // snapshot before the edit
+
         var result = await doctors.UpdateOwnAsync(callerId, req);
+        if (result.Status == DoctorProfileResultStatus.Success && before is not null)
+            log.LogInformation("Doctor {UserId} edited their profile {DoctorProfileId}; changed: {ChangedFields}",
+                callerId, before.Id, AdminDoctorsController.ChangedFields(before, AdminDoctorsController.MapToDto(result.Profile!)));
         return result.Status switch
         {
             DoctorProfileResultStatus.NotFound => NotFound(),

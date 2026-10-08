@@ -68,6 +68,6 @@ public class PendingPaymentExpiryService(
                 new BookingExpiredEvent(appt.Id, appt.DoctorId, appt.PatientId, DateTime.UtcNow), ct);
         }
 
-        logger.LogInformation("Expired {Count} unpaid booking(s)", expired.Count);
+        logger.LogInformation("Expired {Count} unpaid booking(s): {AppointmentIds}", expired.Count, expired.Select(a => a.Id).ToList());
     }
 }

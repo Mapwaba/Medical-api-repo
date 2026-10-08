@@ -1,3 +1,4 @@
+using LandaDoc.ServiceDefaults;
 using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Search.Consumers;
@@ -8,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddLandaDocLogging("Search");
 
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
     ConnectionMultiplexer.Connect(RedisConnectionString.Normalize(builder.Configuration.GetConnectionString("Redis")) ?? "localhost:6379"));
@@ -75,6 +77,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+app.UseLandaDocRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {

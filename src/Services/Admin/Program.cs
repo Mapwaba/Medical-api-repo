@@ -1,3 +1,4 @@
+using LandaDoc.ServiceDefaults;
 using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Admin.Data;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddLandaDocLogging("Admin");
 
 builder.Services.AddDbContext<AdminDbContext>(o =>
     o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
@@ -67,6 +69,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+app.UseLandaDocRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {

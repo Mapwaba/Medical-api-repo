@@ -8,7 +8,7 @@ namespace LandaDoc.Payment.Consumers;
 
 // The booking's grace period lapsed unpaid (Appointment's expiry sweep) — close out the
 // ledger the same way a failed payment webhook would, so payment history reflects why.
-public class BookingExpiredConsumer(PaymentDbContext db) : IConsumer<BookingExpiredEvent>
+public class BookingExpiredConsumer(PaymentDbContext db, ILogger<BookingExpiredConsumer> log) : IConsumer<BookingExpiredEvent>
 {
     public async Task Consume(ConsumeContext<BookingExpiredEvent> ctx)
     {
@@ -34,5 +34,6 @@ public class BookingExpiredConsumer(PaymentDbContext db) : IConsumer<BookingExpi
             Status = PaymentStatus.Failed,
         });
         await db.SaveChangesAsync();
+        log.LogInformation("Payment for appointment {AppointmentId} closed as failed: booking expired unpaid", payment.AppointmentId);
     }
 }

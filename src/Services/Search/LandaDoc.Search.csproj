@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\LandaDoc.Shared\LandaDoc.Shared.csproj" />
+    <ProjectReference Include="..\..\LandaDoc.ServiceDefaults\LandaDoc.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>

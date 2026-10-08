@@ -8,7 +8,7 @@ namespace LandaDoc.Appointment.Consumers;
 
 // The patient chose to pay through their insurer — hold the booking (no unpaid expiry)
 // until the doctor approves or declines the claim.
-public class InsuranceClaimSubmittedConsumer(AppointmentDbContext db) : IConsumer<InsuranceClaimSubmittedEvent>
+public class InsuranceClaimSubmittedConsumer(AppointmentDbContext db, ILogger<InsuranceClaimSubmittedConsumer> log) : IConsumer<InsuranceClaimSubmittedEvent>
 {
     public async Task Consume(ConsumeContext<InsuranceClaimSubmittedEvent> context)
     {
@@ -19,5 +19,6 @@ public class InsuranceClaimSubmittedConsumer(AppointmentDbContext db) : IConsume
         appt.AwaitingInsuranceReview = true;
         appt.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        log.LogInformation("Appointment {AppointmentId} held for the doctor's insurance review (no unpaid expiry meanwhile)", appt.Id);
     }
 }

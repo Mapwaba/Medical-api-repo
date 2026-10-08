@@ -1,3 +1,4 @@
+using LandaDoc.ServiceDefaults;
 using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Availability.Consumers;
@@ -10,6 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddLandaDocLogging("Availability");
 
 builder.Services.AddDbContext<AvailabilityDbContext>(o =>
     o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
@@ -75,6 +77,7 @@ builder.Services.AddControllers()
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+app.UseLandaDocRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {

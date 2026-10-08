@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LandaDoc.Appointment.Consumers;
 
-public class PaymentFailedConsumer(AppointmentDbContext db) : IConsumer<PaymentFailedEvent>
+public class PaymentFailedConsumer(AppointmentDbContext db, ILogger<PaymentFailedConsumer> log) : IConsumer<PaymentFailedEvent>
 {
     public async Task Consume(ConsumeContext<PaymentFailedEvent> context)
     {
@@ -17,5 +17,6 @@ public class PaymentFailedConsumer(AppointmentDbContext db) : IConsumer<PaymentF
         appt.Status = AppointmentStatus.Cancelled;
         appt.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        log.LogInformation("Appointment {AppointmentId} cancelled: payment failed ({Reason})", appt.Id, context.Message.Reason ?? "no reason given");
     }
 }

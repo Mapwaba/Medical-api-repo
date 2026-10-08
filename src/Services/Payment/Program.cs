@@ -1,3 +1,4 @@
+using LandaDoc.ServiceDefaults;
 using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Payment.Consumers;
@@ -10,6 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 using Stripe;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddLandaDocLogging("Payment");
 
 builder.Services.AddDbContext<PaymentDbContext>(o =>
     o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
@@ -85,6 +87,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+app.UseLandaDocRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {

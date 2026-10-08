@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using LandaDoc.Admin.Services;
 using LandaDoc.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +8,7 @@ namespace LandaDoc.Admin.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ClinicsController(IClinicService clinics) : ControllerBase
+public class ClinicsController(IClinicService clinics, ILogger<ClinicsController> log) : ControllerBase
 {
     [HttpGet]
     [Authorize]
@@ -35,6 +36,8 @@ public class ClinicsController(IClinicService clinics) : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var clinic = await clinics.CreateAsync(req);
+        log.LogInformation("Clinic {ClinicId} ({ClinicName}, {City}) created by admin {AdminId}",
+            clinic.Id, clinic.Name, clinic.City, User.FindFirstValue(ClaimTypes.NameIdentifier));
         return StatusCode(201, MapToDto(clinic));
     }
 
@@ -43,6 +46,9 @@ public class ClinicsController(IClinicService clinics) : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateClinicRequest req)
     {
         var clinic = await clinics.UpdateAsync(id, req);
+        if (clinic is not null)
+            log.LogInformation("Clinic {ClinicId} ({ClinicName}) updated by admin {AdminId}",
+                clinic.Id, clinic.Name, User.FindFirstValue(ClaimTypes.NameIdentifier));
         return clinic is null ? NotFound() : Ok(MapToDto(clinic));
     }
 

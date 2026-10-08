@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace LandaDoc.Identity.Controllers;
 
 [ApiController, Route("api/auth")]
-public class AuthController(IAuthService auth) : ControllerBase
+public class AuthController(IAuthService auth, ILogger<AuthController> log) : ControllerBase
 {
     [HttpPost("register")]
     [EnableRateLimiting("auth")]
@@ -17,6 +17,10 @@ public class AuthController(IAuthService auth) : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await auth.RegisterPatientAsync(req);
+        if (result.Status == AuthResultStatus.Success)
+            log.LogInformation("Patient account {UserId} registered", result.Response!.User.Id);
+        else
+            log.LogInformation("Patient registration refused: {Reason}", result.Status);
         return result.Status switch
         {
             AuthResultStatus.EmailAlreadyRegistered or AuthResultStatus.PhoneAlreadyRegistered
@@ -32,6 +36,10 @@ public class AuthController(IAuthService auth) : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await auth.RegisterDoctorAsync(req);
+        if (result.Status == AuthResultStatus.Success)
+            log.LogInformation("Doctor account {UserId} registered", result.Response!.User.Id);
+        else
+            log.LogInformation("Doctor registration refused: {Reason}", result.Status);
         return result.Status switch
         {
             AuthResultStatus.EmailAlreadyRegistered or AuthResultStatus.PhoneAlreadyRegistered
@@ -57,6 +65,8 @@ public class AuthController(IAuthService auth) : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await auth.UpdateMeAsync(userId, req);
+        if (result.Status == AuthResultStatus.Success)
+            log.LogInformation("User {UserId} updated their account details", userId);
         return result.Status switch
         {
             AuthResultStatus.Success => Ok(result.User),
@@ -81,6 +91,10 @@ public class AuthController(IAuthService auth) : ControllerBase
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await auth.ChangePasswordAsync(userId, req);
+        if (result.Status == AuthResultStatus.Success)
+            log.LogInformation("User {UserId} changed their password (other sessions signed out)", userId);
+        else
+            log.LogInformation("Password change for user {UserId} refused: {Reason}", userId, result.Status);
         return result.Status switch
         {
             AuthResultStatus.InvalidCredentials => BadRequest(new { error = "Current password is incorrect" }),
@@ -89,12 +103,34 @@ public class AuthController(IAuthService auth) : ControllerBase
         };
     }
 
+    // The web apps call this just before signing someone out in the browser, so support can see why a
+    // session ended (the server otherwise never hears about it). Only known reasons are recorded.
+    [HttpPost("session-ended")]
+    [Authorize]
+    public IActionResult SessionEnded([FromBody] SessionEndedRequest req)
+    {
+        var reason = req.Reason switch
+        {
+            "inactive" => "logged out automatically after inactivity",
+            "inactive-prompt-logout" => "chose to log out from the inactivity prompt",
+            _ => null,
+        };
+        if (reason is null) return BadRequest();
+
+        log.LogInformation("User {UserId} {SessionEndReason}", User.FindFirstValue(ClaimTypes.NameIdentifier), reason);
+        return NoContent();
+    }
+
     [HttpPost("login")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login([FromBody] LoginRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await auth.LoginAsync(req);
+        if (result.Status == AuthResultStatus.Success)
+            log.LogInformation("User {UserId} ({Role}) logged in", result.Response!.User.Id, result.Response.User.Role);
+        else
+            log.LogInformation("Login refused from {ClientIp}: {Reason}", ClientAddress.Of(HttpContext), result.Status);
         return result.Status switch
         {
             AuthResultStatus.InvalidCredentials => Unauthorized(new { error = "Invalid credentials" }),
@@ -130,6 +166,8 @@ public class AuthController(IAuthService auth) : ControllerBase
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await auth.UpdateMeAsync(id, req);
+        if (result.Status == AuthResultStatus.Success)
+            log.LogInformation("Account {UserId} updated by admin {AdminId}", id, User.FindFirstValue(ClaimTypes.NameIdentifier));
         return result.Status switch
         {
             AuthResultStatus.Success => Ok(result.User),

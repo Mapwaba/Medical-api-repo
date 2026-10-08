@@ -48,6 +48,7 @@ This setup is for demos. For production, use the VPS setup in [DEPLOY.md](DEPLOY
    Blueprint syncs keep keys you add in the dashboard, so you only do this once.
 5. Redeploy every service: open each one → **Manual Deploy → Deploy latest commit**. Each service creates its own tables on first boot (`Database__MigrateOnStartup=true`).
 6. Check `https://landadoc-identity.onrender.com/health` and the other services' `/health` endpoints. Each should return `{"status":"healthy"}`.
+7. Optional: send all services' logs to one place and get alerts when a service is down. See [MONITORING.md](MONITORING.md).
 
 **If Render added a suffix to a name** (for example `landadoc-identity-x7k2.onrender.com`, because the plain name was taken):
 - Update that URL in `deploy/vercel/appsettings.Production.json` in Appointment-repo.

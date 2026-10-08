@@ -9,7 +9,7 @@ namespace LandaDoc.Appointment.Consumers;
 // The doctor declined the insurance claim — the booking is unpaid again. The patient gets
 // Booking:DeclinedClaimPayHours (default 24h, but never past the slot itself) to pay another
 // way before the usual expiry sweep cancels it.
-public class InsuranceClaimDeclinedConsumer(AppointmentDbContext db, IConfiguration cfg) : IConsumer<InsuranceClaimDeclinedEvent>
+public class InsuranceClaimDeclinedConsumer(AppointmentDbContext db, IConfiguration cfg, ILogger<InsuranceClaimDeclinedConsumer> log) : IConsumer<InsuranceClaimDeclinedEvent>
 {
     public async Task Consume(ConsumeContext<InsuranceClaimDeclinedEvent> context)
     {
@@ -23,5 +23,6 @@ public class InsuranceClaimDeclinedConsumer(AppointmentDbContext db, IConfigurat
         appt.PaymentDueAt = dueAt < appt.SlotStart ? dueAt : appt.SlotStart;
         appt.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        log.LogInformation("Insurance declined for appointment {AppointmentId}: patient must pay another way by {PaymentDueAt}", appt.Id, appt.PaymentDueAt);
     }
 }

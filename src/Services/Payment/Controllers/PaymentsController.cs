@@ -22,7 +22,8 @@ public class PaymentsController(
     PaymentDbContext db,
     IConfiguration cfg,
     IPublishEndpoint bus,
-    IMokoAfrikaClient moko) : ControllerBase
+    IMokoAfrikaClient moko,
+    ILogger<PaymentsController> log) : ControllerBase
 {
     // Stripe calls this endpoint when payment succeeds or fails
     [HttpPost("webhook/stripe")]
@@ -39,6 +40,7 @@ public class PaymentsController(
         }
         catch (StripeException)
         {
+            log.LogWarning("Stripe webhook rejected: invalid signature");
             return BadRequest();
         }
 
@@ -71,6 +73,8 @@ public class PaymentsController(
             await bus.Publish(new PaymentCompletedEvent(
                 payment.AppointmentId, payment.DoctorId,
                 payment.PatientId, DateTime.UtcNow));
+            log.LogInformation("Card payment succeeded for appointment {AppointmentId}: {Amount} (Stripe {ProviderRef})",
+                payment.AppointmentId, payment.GrossAmount, intent.Id);
         }
         else if (stripeEvent.Type == Events.PaymentIntentPaymentFailed)
         {
@@ -102,6 +106,8 @@ public class PaymentsController(
             await db.SaveChangesAsync();
             await bus.Publish(new PaymentFailedEvent(
                 payment.AppointmentId, reason, DateTime.UtcNow));
+            log.LogWarning("Card payment failed for appointment {AppointmentId} (Stripe {ProviderRef}): {Reason}",
+                payment.AppointmentId, intent.Id, reason);
         }
         return Ok();
     }
@@ -127,7 +133,10 @@ public class PaymentsController(
         }
 
         if (string.IsNullOrEmpty(signature) || !moko.VerifySignature(encryptedData, signature))
+        {
+            log.LogWarning("Moko Afrika webhook rejected: missing or invalid signature");
             return Unauthorized();
+        }
 
         JsonElement payload;
         try
@@ -177,11 +186,15 @@ public class PaymentsController(
         {
             await bus.Publish(new PaymentCompletedEvent(
                 payment.AppointmentId, payment.DoctorId, payment.PatientId, DateTime.UtcNow));
+            log.LogInformation("Mobile money payment succeeded for appointment {AppointmentId}: {Amount} (Moko {ProviderRef})",
+                payment.AppointmentId, payment.GrossAmount, transactionId);
         }
         else
         {
             var reason = payload.TryGetProperty("Trans_Status_Description", out var d) ? d.GetString() : null;
             await bus.Publish(new PaymentFailedEvent(payment.AppointmentId, reason, DateTime.UtcNow));
+            log.LogWarning("Mobile money payment failed for appointment {AppointmentId} (Moko {ProviderRef}): {Reason}",
+                payment.AppointmentId, transactionId, reason);
         }
 
         return Ok(new { status = "Callback received successfully" });
@@ -247,6 +260,8 @@ public class PaymentsController(
         // Appointment stops the unpaid-booking expiry; Notification alerts the doctor
         await bus.Publish(new InsuranceClaimSubmittedEvent(
             payment.AppointmentId, payment.DoctorId, payment.PatientId, insurer.Name, DateTime.UtcNow));
+        log.LogInformation("Insurance claim {ClaimId} filed for appointment {AppointmentId} with insurer {InsurerId} ({Amount}); waiting for doctor {DoctorId}",
+            claim.Id, claim.AppointmentId, claim.InsurerId, claim.Amount, claim.DoctorId);
 
         return Ok(new InitiatePaymentResponse(
             PaymentProvider.Insurance, null, "Your claim was sent to the doctor for review."));
@@ -282,6 +297,8 @@ public class PaymentsController(
             CancelUrl = $"{frontendUrl}/payments/{payment.Id}/result?status=cancelled"
         };
         var session = await new SessionService().CreateAsync(options);
+        log.LogInformation("Card checkout opened for appointment {AppointmentId}: {Amount} (Stripe session {SessionId})",
+            payment.AppointmentId, payment.GrossAmount, session.Id);
         return Ok(new InitiatePaymentResponse(PaymentProvider.Stripe, session.Url, null));
     }
 
@@ -309,8 +326,14 @@ public class PaymentsController(
             firstName, lastName, email, $"{callbackBase}/api/payments/webhook/moko");
 
         if (!result.Success)
+        {
+            log.LogWarning("Moko Afrika refused to start a payment for appointment {AppointmentId}: {Comment}",
+                payment.AppointmentId, result.Comment);
             return UnprocessableEntity(new { error = result.Comment ?? "Could not start the mobile money payment" });
+        }
 
+        log.LogInformation("Mobile money prompt sent for appointment {AppointmentId}: {Amount} via {Operator}",
+            payment.AppointmentId, payment.GrossAmount, request.Operator);
         return Ok(new InitiatePaymentResponse(
             PaymentProvider.MokoAfrika, null, "Check your phone to approve the payment."));
     }

@@ -19,6 +19,7 @@ envVarGroups:
   # dashboard afterwards (Render keeps dashboard-added keys on every sync):
   #   RabbitMq__Host, RabbitMq__VirtualHost, RabbitMq__Username, RabbitMq__Password
   #   Cors__AllowedOrigins__0/1/2  (the three Vercel URLs)
+  #   BetterStack__SourceToken, BetterStack__Endpoint  (optional: central logs, see MONITORING.md)
   - name: landadoc-shared
     envVars:
       - key: ASPNETCORE_ENVIRONMENT

@@ -42,6 +42,9 @@ public record PatientContactDto(
 );
 
 // A signed-in user editing their own account (name and phone; email stays the login)
+// Why a browser session ended, reported by the web apps: "inactive" or "inactive-prompt-logout"
+public record SessionEndedRequest([Required, StringLength(40)] string Reason);
+
 public record UpdateMeRequest(
     [Required, StringLength(100)] string FirstName,
     [Required, StringLength(100)] string LastName,

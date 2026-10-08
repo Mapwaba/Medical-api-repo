@@ -27,6 +27,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LandaDoc.Review", "src\Serv
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LandaDoc.Search", "src\Services\Search\LandaDoc.Search.csproj", "{DAEBF254-D8C3-4636-AF31-6ACCECB14654}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LandaDoc.ServiceDefaults", "src\LandaDoc.ServiceDefaults\LandaDoc.ServiceDefaults.csproj", "{8D8B7C80-CC37-4698-81D1-5E93A55C7260}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -169,6 +171,18 @@ Global
 		{DAEBF254-D8C3-4636-AF31-6ACCECB14654}.Release|x64.Build.0 = Release|Any CPU
 		{DAEBF254-D8C3-4636-AF31-6ACCECB14654}.Release|x86.ActiveCfg = Release|Any CPU
 		{DAEBF254-D8C3-4636-AF31-6ACCECB14654}.Release|x86.Build.0 = Release|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Debug|x64.Build.0 = Debug|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Debug|x86.Build.0 = Debug|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Release|x64.ActiveCfg = Release|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Release|x64.Build.0 = Release|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Release|x86.ActiveCfg = Release|Any CPU
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -185,5 +199,6 @@ Global
 		{23738780-211D-494B-90AB-ECCEC5621C45} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{9AC91C02-4127-4C6E-9E4F-3F6EA6480628} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{DAEBF254-D8C3-4636-AF31-6ACCECB14654} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{8D8B7C80-CC37-4698-81D1-5E93A55C7260} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

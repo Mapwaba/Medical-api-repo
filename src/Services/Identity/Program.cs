@@ -1,3 +1,4 @@
+using LandaDoc.ServiceDefaults;
 using LandaDoc.Shared.Data;
 using System.Text;
 using LandaDoc.Identity.Consumers;
@@ -9,16 +10,9 @@ using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Serilog;
-
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .WriteTo.Seq(Environment.GetEnvironmentVariable("SEQ_URL") ?? "http://localhost:5341")
-    .Enrich.WithProperty("Service", "Identity")
-    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseSerilog();
+builder.AddLandaDocLogging("Identity");
 
 builder.Services.AddDbContext<IdentityDbContext>(o =>
     o.UseNpgsql(PostgresConnectionString.Normalize(builder.Configuration.GetConnectionString("Conx"))));
@@ -90,25 +84,21 @@ builder.Services.AddMassTransit(x =>
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(ClientIp(ctx), _ => new FixedWindowRateLimiterOptions
+    // Repeated refusals for one address in the logs usually mean someone is guessing passwords
+    o.OnRejected = (ctx, _) =>
+    {
+        ctx.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("RateLimit")
+            .LogWarning("Too many attempts from {ClientIp} on {Path}: request refused",
+                ClientAddress.Of(ctx.HttpContext), ctx.HttpContext.Request.Path.Value);
+        return ValueTask.CompletedTask;
+    };
+    o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(ClientAddress.Of(ctx), _ => new FixedWindowRateLimiterOptions
     {
         Window = TimeSpan.FromMinutes(1),
         PermitLimit = 10,
         QueueLimit = 0,
     }));
 });
-
-// The caller's IP. In production we sit behind a proxy (Render, or Caddy in the Docker setup), so
-// RemoteIpAddress is the proxy's address for everyone; the proxy appends the real client to
-// X-Forwarded-For, and taking the LAST entry means a client can't dodge the limit by sending a
-// made-up header of its own (anything it sends ends up to the left).
-static string ClientIp(HttpContext ctx)
-{
-    var forwardedFor = ctx.Request.Headers["X-Forwarded-For"].ToString();
-    if (!string.IsNullOrWhiteSpace(forwardedFor))
-        return forwardedFor.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Last();
-    return ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? new[] { "http://localhost:5299", "http://localhost:5003", "http://localhost:5500" };
@@ -124,6 +114,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+app.UseLandaDocRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {

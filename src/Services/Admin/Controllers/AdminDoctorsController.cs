@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using LandaDoc.Admin.Services;
 using LandaDoc.Shared.DTOs;
 using LandaDoc.Shared.Models;
@@ -9,7 +10,7 @@ namespace LandaDoc.Admin.Controllers;
 [ApiController]
 [Route("api/admin/doctors")]
 [Authorize(Roles = "Admin")]
-public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerBase
+public class AdminDoctorsController(IDoctorProfileService doctors, ILogger<AdminDoctorsController> log) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] DoctorApprovalStatus? status) =>
@@ -27,6 +28,9 @@ public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerB
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var result = await doctors.CreateAsync(req, autoApprove: true);
+        if (result.Status == DoctorProfileResultStatus.Success)
+            log.LogInformation("Doctor profile {DoctorProfileId} created and approved by admin {AdminId} for account {UserId}",
+                result.Profile!.Id, CallerId(), req.UserId);
         return result.Status switch
         {
             DoctorProfileResultStatus.AlreadyExists => Conflict(new { error = "A profile already exists for this user" }),
@@ -46,8 +50,12 @@ public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerB
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var profile = await doctors.GetByIdAsync(id);
         if (profile is null) return NotFound();
+        var before = MapToDto(profile);   // snapshot: the service updates this same tracked object
 
         var result = await doctors.UpdateOwnAsync(profile.UserId, req);
+        if (result.Status == DoctorProfileResultStatus.Success)
+            log.LogInformation("Doctor profile {DoctorProfileId} edited by admin {AdminId}; changed: {ChangedFields}",
+                id, CallerId(), ChangedFields(before, MapToDto(result.Profile!)));
         return result.Status switch
         {
             DoctorProfileResultStatus.NotFound => NotFound(),
@@ -61,6 +69,8 @@ public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerB
     public async Task<IActionResult> Approve(Guid id)
     {
         var result = await doctors.ApproveAsync(id);
+        if (result.Status == DoctorProfileResultStatus.Success)
+            log.LogInformation("Doctor profile {DoctorProfileId} approved by admin {AdminId}", id, CallerId());
         return result.Status switch
         {
             DoctorProfileResultStatus.NotFound => NotFound(),
@@ -74,6 +84,8 @@ public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerB
     public async Task<IActionResult> Suspend(Guid id, [FromBody] SuspendDoctorRequest req)
     {
         var result = await doctors.SuspendAsync(id, req);
+        if (result.Status == DoctorProfileResultStatus.Success)
+            log.LogInformation("Doctor profile {DoctorProfileId} suspended by admin {AdminId}", id, CallerId());
         return result.Status switch
         {
             DoctorProfileResultStatus.NotFound => NotFound(),
@@ -81,6 +93,24 @@ public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerB
             DoctorProfileResultStatus.Success => Ok(MapToDto(result.Profile!)),
             _ => Problem()
         };
+    }
+
+    private string? CallerId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    // Names of the profile fields that differ — logged instead of the values themselves,
+    // which can include free text (the bio) that doesn't belong in logs
+    internal static List<string> ChangedFields(DoctorProfileDto before, DoctorProfileDto after)
+    {
+        var changed = new List<string>();
+        if (before.FirstName != after.FirstName) changed.Add("FirstName");
+        if (before.LastName != after.LastName) changed.Add("LastName");
+        if (before.Specialty != after.Specialty) changed.Add("Specialty");
+        if (before.LicenseNumber != after.LicenseNumber) changed.Add("LicenseNumber");
+        if (before.Bio != after.Bio) changed.Add("Bio");
+        if (before.ConsultationFee != after.ConsultationFee) changed.Add("ConsultationFee");
+        if (!before.Clinics.Select(c => c.Id).OrderBy(x => x).SequenceEqual(after.Clinics.Select(c => c.Id).OrderBy(x => x)))
+            changed.Add("Clinics");
+        return changed;
     }
 
     internal static DoctorProfileDto MapToDto(Models.DoctorProfile d) => new(
