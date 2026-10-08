@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Security;
 using LandaDoc.Shared.DTOs;
 using LandaDoc.Shared.Models;
 
@@ -15,10 +16,11 @@ public enum AuthResultStatus
     EmailAlreadyRegistered,
     PhoneAlreadyRegistered,
     NameAlreadyRegistered,
-    InvalidRefreshToken
+    InvalidRefreshToken,
+    WeakPassword           // a doctor's password breaks PasswordPolicy (FailedRules says which rules)
 }
 
-public record AuthResult(AuthResultStatus Status, AuthResponse? Response = null);
+public record AuthResult(AuthResultStatus Status, AuthResponse? Response = null, IReadOnlyList<PasswordRule>? FailedRules = null);
 
 public interface IAuthService
 {

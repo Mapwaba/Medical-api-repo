@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Security;
 using LandaDoc.Identity.Data;
 using LandaDoc.Identity.Models;
 using LandaDoc.Shared.DTOs;
@@ -92,6 +93,9 @@ public class AuthService(
 
     public async Task<AuthResult> RegisterDoctorAsync(RegisterDoctorRequest req)
     {
+        var weak = PasswordPolicy.Check(req.Password, req.FirstName, req.LastName, req.Email);
+        if (weak.Count > 0) return new AuthResult(AuthResultStatus.WeakPassword, FailedRules: weak);
+
         var conflict = await AccountUniqueness.FindConflictAsync(
             db, req.Email, req.Phone, req.FirstName, req.LastName, UserRole.Doctor);
         if (conflict is not null) return new AuthResult(conflict.Value);
@@ -197,6 +201,13 @@ public class AuthService(
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
         if (user is null || !hasher.Verify(req.CurrentPassword, user.PasswordHash))
             return new AuthResult(AuthResultStatus.InvalidCredentials);
+
+        // Doctors' passwords follow the stricter policy
+        if (user.Role == UserRole.Doctor)
+        {
+            var weak = PasswordPolicy.Check(req.NewPassword, user.FirstName, user.LastName, user.Email);
+            if (weak.Count > 0) return new AuthResult(AuthResultStatus.WeakPassword, FailedRules: weak);
+        }
 
         user.PasswordHash = hasher.Hash(req.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;

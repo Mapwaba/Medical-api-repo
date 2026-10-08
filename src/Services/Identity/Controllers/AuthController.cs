@@ -47,6 +47,7 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
         {
             AuthResultStatus.EmailAlreadyRegistered or AuthResultStatus.PhoneAlreadyRegistered
                 or AuthResultStatus.NameAlreadyRegistered => DuplicateConflict(result.Status),
+            AuthResultStatus.WeakPassword => WeakPassword(result),
             AuthResultStatus.Success => StatusCode(201, result.Response),
             _ => Problem()
         };
@@ -91,6 +92,14 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
         return user is null ? NotFound() : Ok(user);
     }
 
+    // 422 (not 400, which the apps read as "wrong current password") with the broken rules by name
+    private UnprocessableEntityObjectResult WeakPassword(AuthResult result) => UnprocessableEntity(new
+    {
+        error = "The password doesn't meet the requirements",
+        code = "weak_password",
+        rules = result.FailedRules!.Select(r => r.ToString()),
+    });
+
     private BadRequestObjectResult UnknownCountry() => BadRequest(new { error = "Unknown country code" });
 
     // 409 with "code" (email | phone | name) so the apps can say exactly which value is taken
@@ -116,6 +125,7 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
         return result.Status switch
         {
             AuthResultStatus.InvalidCredentials => BadRequest(new { error = "Current password is incorrect" }),
+            AuthResultStatus.WeakPassword => WeakPassword(result),
             AuthResultStatus.Success => Ok(result.Response),
             _ => Problem()
         };
