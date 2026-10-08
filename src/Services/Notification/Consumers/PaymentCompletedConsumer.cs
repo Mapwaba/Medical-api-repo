@@ -31,6 +31,12 @@ public class PaymentCompletedConsumer(
         await publisher.PushPendingCountAsync(msg.PatientId);
         await publisher.PushPendingCountAsync(msg.DoctorId);
 
+        if (msg.Provider == PaymentProvider.Insurance)
+        {
+            await NotifyClaimApprovedAsync(msg);
+            return;
+        }
+
         await publisher.PublishAsync(msg.PatientId, "payment_completed", "Paiement reçu",
             "Votre paiement a été reçu et votre rendez-vous est confirmé.");
         await publisher.PublishAsync(msg.DoctorId, "payment_completed", "Paiement reçu",
@@ -44,5 +50,21 @@ public class PaymentCompletedConsumer(
 
         if (!string.IsNullOrWhiteSpace(contact.Phone))
             await sms.SendAsync(contact.Phone, "LandaDoc: paiement reçu, votre rendez-vous est confirmé.");
+    }
+
+    // The doctor accepted the patient's insurance: nothing was paid, so no receipt wording
+    private async Task NotifyClaimApprovedAsync(PaymentCompletedEvent msg)
+    {
+        await publisher.PublishAsync(msg.PatientId, "insurance_claim_approved", "Prise en charge acceptée",
+            "Le médecin a accepté votre assurance. Votre rendez-vous est confirmé.");
+
+        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
+        if (contact is null) return;
+
+        await email.SendAsync(contact.Email, "Prise en charge acceptée",
+            $"Bonjour {contact.FirstName}, le médecin a accepté la prise en charge par votre assurance. Votre rendez-vous est confirmé.");
+
+        if (!string.IsNullOrWhiteSpace(contact.Phone))
+            await sms.SendAsync(contact.Phone, "LandaDoc: prise en charge acceptée, votre rendez-vous est confirmé.");
     }
 }

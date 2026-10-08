@@ -78,7 +78,9 @@ builder.Services.AddCors(o => o.AddPolicy("Frontend", p => p
     .AllowAnyHeader()
     .AllowAnyMethod()));
 
-builder.Services.AddControllers();
+// Enums as strings, like the other services — the web apps send e.g. "Provider": "Stripe"
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 

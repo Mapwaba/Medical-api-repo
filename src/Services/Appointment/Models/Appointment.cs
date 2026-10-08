@@ -15,6 +15,12 @@ public class Appointment
     public string? Motif { get; set; }
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
     public string? Notes { get; set; }
+    // The patient asked to pay through their insurer and the doctor hasn't reviewed it yet —
+    // the unpaid-booking expiry leaves the appointment alone meanwhile.
+    public bool AwaitingInsuranceReview { get; set; }
+    // When set, the unpaid booking expires at this time instead of CreatedAt + the usual
+    // window (after a declined insurance claim the patient gets longer to pay another way).
+    public DateTime? PaymentDueAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

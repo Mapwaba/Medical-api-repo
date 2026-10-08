@@ -201,12 +201,52 @@ public class PaymentsController(
         if (payment.Status != PaymentStatus.Pending)
             return Conflict(new { error = "Payment is not in a payable state" });
 
+        // A claim waiting for the doctor's review already covers this booking
+        var claimUnderReview = await db.InsuranceClaims.AnyAsync(c =>
+            c.PaymentId == payment.Id && c.Status == InsuranceClaimStatus.Submitted);
+        if (claimUnderReview)
+            return Conflict(new { error = "An insurance claim for this booking is waiting for the doctor's review" });
+
         return request.Provider switch
         {
             PaymentProvider.Stripe => await InitiateStripeAsync(payment),
             PaymentProvider.MokoAfrika => await InitiateMokoAsync(payment, request),
+            PaymentProvider.Insurance => await InitiateInsuranceAsync(payment, request),
             _ => BadRequest()
         };
+    }
+
+    // No money moves now: the claim goes to the doctor, who checks the patient's cover and
+    // approves it (booking confirmed, insurer billed later) or declines it.
+    private async Task<IActionResult> InitiateInsuranceAsync(Models.Payment payment, InitiatePaymentRequest request)
+    {
+        if (request.InsurerId is null || string.IsNullOrWhiteSpace(request.MemberNumber))
+            return BadRequest(new { error = "Insurer and member number are required for insurance" });
+
+        var insurer = await db.Insurers.FirstOrDefaultAsync(i => i.Id == request.InsurerId && i.IsActive);
+        if (insurer is null)
+            return BadRequest(new { error = "This insurer isn't accepted on LandaDoc" });
+
+        var claim = new Models.InsuranceClaim
+        {
+            PaymentId = payment.Id,
+            AppointmentId = payment.AppointmentId,
+            DoctorId = payment.DoctorId,
+            PatientId = payment.PatientId,
+            InsurerId = insurer.Id,
+            InsurerName = insurer.Name,
+            MemberNumber = request.MemberNumber.Trim(),
+            MemberName = string.IsNullOrWhiteSpace(request.MemberName) ? null : request.MemberName.Trim(),
+            Amount = payment.GrossAmount,
+        };
+        db.InsuranceClaims.Add(claim);
+        await db.SaveChangesAsync();
+
+        await bus.Publish(new InsuranceClaimSubmittedEvent(
+            payment.AppointmentId, payment.DoctorId, payment.PatientId, insurer.Name, DateTime.UtcNow));
+
+        return Ok(new InitiatePaymentResponse(
+            PaymentProvider.Insurance, null, "Your claim was sent to the doctor for review."));
     }
 
     private async Task<IActionResult> InitiateStripeAsync(Models.Payment payment)

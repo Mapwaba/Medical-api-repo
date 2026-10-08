@@ -54,6 +54,10 @@ builder.Services.AddMassTransit(x =>
         .Endpoint(e => e.Name = "appointment-payment-failed");
     x.AddConsumer<PaymentCompletedConsumer>()
         .Endpoint(e => e.Name = "appointment-payment-completed");
+    x.AddConsumer<InsuranceClaimSubmittedConsumer>()
+        .Endpoint(e => e.Name = "appointment-insurance-claim-submitted");
+    x.AddConsumer<InsuranceClaimDeclinedConsumer>()
+        .Endpoint(e => e.Name = "appointment-insurance-claim-declined");
     // Same explicit-naming reasoning as above — Notification is a plausible future
     // consumer of these same family events under identically-named classes.
     x.AddConsumer<FamilyLinkAcceptedConsumer>()

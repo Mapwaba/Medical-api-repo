@@ -42,9 +42,11 @@ public class PendingPaymentExpiryService(
         var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
         var bus = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
-        var cutoff = DateTime.UtcNow.AddMinutes(-expiryMinutes);
+        var now = DateTime.UtcNow;
+        var cutoff = now.AddMinutes(-expiryMinutes);
         var expired = await db.Appointments
-            .Where(a => a.Status == AppointmentStatus.Pending && a.CreatedAt < cutoff)
+            .Where(a => a.Status == AppointmentStatus.Pending && !a.AwaitingInsuranceReview)
+            .Where(a => a.PaymentDueAt != null ? a.PaymentDueAt < now : a.CreatedAt < cutoff)
             .ToListAsync(ct);
         if (expired.Count == 0) return;
 
