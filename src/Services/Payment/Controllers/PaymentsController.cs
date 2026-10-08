@@ -240,6 +240,10 @@ public class PaymentsController(
         if (insurer is null)
             return BadRequest(new { error = "This insurer isn't accepted on LandaDoc" });
 
+        var choice = await db.DoctorInsurerChoices.FindAsync(payment.DoctorId);
+        if (choice is not null && !choice.InsurerIds.Contains(insurer.Id))
+            return BadRequest(new { error = "This doctor doesn't accept this insurer" });
+
         // The claim covers the full consultation fee; the insurer's name is copied so the claim
         // still reads correctly if an admin renames the insurer later
         var claim = new Models.InsuranceClaim

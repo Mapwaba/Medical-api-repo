@@ -78,6 +78,10 @@ builder.Services.AddMassTransit(x =>
         .Endpoint(e => e.Name = "notification-insurance-claim-submitted");
     x.AddConsumer<InsuranceClaimDeclinedConsumer>()
         .Endpoint(e => e.Name = "notification-insurance-claim-declined");
+    x.AddConsumer<InsuranceReviewReminderConsumer>()
+        .Endpoint(e => e.Name = "notification-insurance-review-reminder");
+    x.AddConsumer<InsuranceClaimRejectedConsumer>()
+        .Endpoint(e => e.Name = "notification-insurance-claim-rejected");
     x.AddConsumer<BookingExpiredConsumer>()
         .Endpoint(e => e.Name = "notification-booking-expired");
     x.AddConsumer<AppointmentCompletedConsumer>()

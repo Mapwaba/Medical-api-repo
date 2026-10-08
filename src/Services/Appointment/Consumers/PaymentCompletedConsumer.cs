@@ -27,6 +27,8 @@ public class PaymentCompletedConsumer(AppointmentDbContext db, ILogger<PaymentCo
 
         appt.Status = AppointmentStatus.Confirmed;
         appt.AwaitingInsuranceReview = false;
+        appt.InsuranceReviewRemindAt = null;
+        appt.InsuranceReviewDueAt = null;
         appt.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         log.LogInformation("Appointment {AppointmentId} confirmed: paid by {Provider}", appt.Id, context.Message.Provider?.ToString() ?? "payment");

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LandaDoc.Notification.Consumers;
 
-// The doctor declined the insurance claim — the patient needs to pay another way
+// The doctor declined the insurance claim, or didn't answer in time — the patient needs to pay another way
 public class InsuranceClaimDeclinedConsumer(
     NotificationDbContext db,
     INotificationPublisher publisher,
@@ -15,11 +15,18 @@ public class InsuranceClaimDeclinedConsumer(
     public async Task Consume(ConsumeContext<InsuranceClaimDeclinedEvent> ctx)
     {
         var msg = ctx.Message;
-        var body = msg.Reason is null
-            ? "Le médecin n'a pas accepté votre assurance pour ce rendez-vous. Veuillez payer par carte ou Mobile Money pour le confirmer."
-            : $"Le médecin n'a pas accepté votre assurance pour ce rendez-vous ({msg.Reason}). Veuillez payer par carte ou Mobile Money pour le confirmer.";
+        var body = msg.TimedOut
+            ? "Le médecin n'a pas pu vérifier votre assurance à temps. Veuillez payer par carte ou Mobile Money pour confirmer votre rendez-vous."
+            : msg.Reason is null
+                ? "Le médecin n'a pas accepté votre assurance pour ce rendez-vous. Veuillez payer par carte ou Mobile Money pour le confirmer."
+                : $"Le médecin n'a pas accepté votre assurance pour ce rendez-vous ({msg.Reason}). Veuillez payer par carte ou Mobile Money pour le confirmer.";
 
         await publisher.PublishAsync(msg.PatientId, "insurance_claim_declined", "Prise en charge refusée", body);
+
+        // Let the doctor know the claim they left waiting has been closed
+        if (msg.TimedOut)
+            await publisher.PublishAsync(msg.DoctorId, "insurance_claim_expired", "Prise en charge expirée",
+                "Une demande de prise en charge a été refusée automatiquement faute de réponse. Le patient a été invité à payer autrement.");
 
         var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
         if (contact is null) return;

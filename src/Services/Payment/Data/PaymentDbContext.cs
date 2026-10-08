@@ -9,6 +9,7 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<Models.DoctorFee> DoctorFees => Set<Models.DoctorFee>();
     public DbSet<Models.Insurer> Insurers => Set<Models.Insurer>();
     public DbSet<Models.InsuranceClaim> InsuranceClaims => Set<Models.InsuranceClaim>();
+    public DbSet<Models.DoctorInsurerChoice> DoctorInsurerChoices => Set<Models.DoctorInsurerChoice>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -78,10 +79,21 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             e.Property(x => x.Status).HasColumnName("status").HasConversion<string>();
             e.Property(x => x.Note).HasColumnName("note");
             e.Property(x => x.InsurerReference).HasColumnName("insurer_reference");
+            e.Property(x => x.AuthorizationReference).HasColumnName("authorization_reference");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             e.HasIndex(x => x.AppointmentId);
             e.HasIndex(x => x.DoctorId);
+        });
+
+        // The insurers each doctor takes (one row per doctor who has chosen; see the model)
+        mb.Entity<Models.DoctorInsurerChoice>(e =>
+        {
+            e.ToTable("doctor_insurer_choices");
+            e.HasKey(x => x.DoctorId);
+            e.Property(x => x.DoctorId).HasColumnName("doctor_id");
+            e.Property(x => x.InsurerIds).HasColumnName("insurer_ids");
+            e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         });
     }
 }

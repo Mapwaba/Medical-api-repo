@@ -20,6 +20,9 @@ public class InsuranceClaim
     public InsuranceClaimStatus Status { get; set; } = InsuranceClaimStatus.Submitted;
     public string? Note { get; set; }              // doctor's reason for declining / rejection
     public string? InsurerReference { get; set; }  // insurer's payment reference once settled
+    // What the insurer gave the doctor when confirming the cover (authorisation number, or the
+    // agent's name); required to approve, so every approval records how the cover was checked
+    public string? AuthorizationReference { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

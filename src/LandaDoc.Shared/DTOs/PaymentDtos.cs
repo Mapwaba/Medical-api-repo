@@ -32,8 +32,15 @@ public record InsuranceClaimDto(
     Guid InsurerId, string InsurerName, string MemberNumber, string? MemberName,
     decimal Amount, InsuranceClaimStatus Status,
     string? Note, string? InsurerReference,
-    DateTime CreatedAt, DateTime UpdatedAt
+    DateTime CreatedAt, DateTime UpdatedAt,
+    // What the insurer gave the doctor when they confirmed the cover (authorisation number,
+    // or the name of the agent they spoke to); set when the claim is approved
+    string? AuthorizationReference = null
 );
+
+// The insurers a doctor takes. AcceptsAll = every active partner, including ones added later
+// (the default for a doctor who never chose); otherwise only InsurerIds (empty = none).
+public record AcceptedInsurersDto(bool AcceptsAll, List<Guid> InsurerIds);
 
 // Note is the reason on decline/reject, and the insurer's payment reference on settle.
 public record ClaimActionRequest(string? Note);

@@ -33,6 +33,14 @@ public class PendingPaymentExpiryService(
             {
                 logger.LogError(ex, "Pending payment expiry sweep failed");
             }
+            try
+            {
+                await SweepInsuranceReviewsAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Insurance review sweep failed");
+            }
         }
     }
 
@@ -69,5 +77,50 @@ public class PendingPaymentExpiryService(
         }
 
         logger.LogInformation("Expired {Count} unpaid booking(s): {AppointmentIds}", expired.Count, expired.Select(a => a.Id).ToList());
+    }
+
+    // Insurance claims waiting for the doctor (deadlines set by InsuranceClaimSubmittedConsumer):
+    // remind the doctor halfway, and at the deadline hand the claim to Payment to decline it.
+    // The booking stays on hold until Payment's InsuranceClaimDeclinedEvent comes back, so a
+    // doctor who approves at the last second still wins (Payment only declines a claim that's
+    // still waiting).
+    private async Task SweepInsuranceReviewsAsync(CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
+        var bus = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
+        var now = DateTime.UtcNow;
+
+        var waiting = db.Appointments.Where(a => a.Status == AppointmentStatus.Pending && a.AwaitingInsuranceReview);
+        var timedOut = await waiting
+            .Where(a => a.InsuranceReviewDueAt != null && a.InsuranceReviewDueAt <= now)
+            .ToListAsync(ct);
+        var toRemind = await waiting
+            .Where(a => a.InsuranceReviewRemindAt != null && a.InsuranceReviewRemindAt <= now)
+            .Where(a => a.InsuranceReviewDueAt != null && a.InsuranceReviewDueAt > now)
+            .ToListAsync(ct);
+        if (timedOut.Count == 0 && toRemind.Count == 0) return;
+
+        // Cleared before publishing so each goes out once
+        var reminders = toRemind.Select(a => (a.Id, a.DoctorId, a.PatientId, DueAt: a.InsuranceReviewDueAt!.Value)).ToList();
+        foreach (var appt in toRemind) appt.InsuranceReviewRemindAt = null;
+        foreach (var appt in timedOut)
+        {
+            appt.InsuranceReviewRemindAt = null;
+            appt.InsuranceReviewDueAt = null;
+        }
+        await db.SaveChangesAsync(ct);
+
+        foreach (var (id, doctorId, patientId, dueAt) in reminders)
+            await bus.Publish(new InsuranceReviewReminderEvent(id, doctorId, patientId, dueAt, now), ct);
+        foreach (var appt in timedOut)
+            await bus.Publish(new InsuranceReviewTimedOutEvent(appt.Id, appt.DoctorId, appt.PatientId, now), ct);
+
+        if (reminders.Count > 0)
+            logger.LogInformation("Reminded doctors about {Count} insurance claim(s) waiting for review: {AppointmentIds}",
+                reminders.Count, reminders.Select(r => r.Id).ToList());
+        if (timedOut.Count > 0)
+            logger.LogInformation("Insurance review deadline passed for {Count} appointment(s), claims sent for automatic decline: {AppointmentIds}",
+                timedOut.Count, timedOut.Select(a => a.Id).ToList());
     }
 }

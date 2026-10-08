@@ -9,7 +9,10 @@ DateTime SlotStart, DateTime SlotEnd,
 string? Motif, AppointmentStatus Status, string? Notes,
 string? DoctorName, string? Specialty,
 string? PatientName, string? ClinicName,
-DateTime CreatedAt);
+DateTime CreatedAt,
+// While an insurance claim waits for the doctor: when it's declined automatically if they
+// haven't answered (real UTC, unlike the slot times)
+DateTime? InsuranceReviewDueAt = null);
 public record CreateAppointmentRequest(
 [Required] Guid DoctorId,
 [Required] DateTime SlotStart,

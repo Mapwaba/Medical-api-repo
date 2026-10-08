@@ -29,6 +29,8 @@ public class AppointmentDbContext(DbContextOptions<AppointmentDbContext> options
                 .HasConversion<string>();
             e.Property(x => x.Notes).HasColumnName("notes");
             e.Property(x => x.AwaitingInsuranceReview).HasColumnName("awaiting_insurance_review");
+            e.Property(x => x.InsuranceReviewRemindAt).HasColumnName("insurance_review_remind_at");
+            e.Property(x => x.InsuranceReviewDueAt).HasColumnName("insurance_review_due_at");
             e.Property(x => x.PaymentDueAt).HasColumnName("payment_due_at");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");

@@ -18,6 +18,10 @@ public class Appointment
     // The patient asked to pay through their insurer and the doctor hasn't reviewed it yet —
     // the unpaid-booking expiry leaves the appointment alone meanwhile.
     public bool AwaitingInsuranceReview { get; set; }
+    // While awaiting review: when the doctor gets a reminder (cleared once sent) and when the
+    // claim is declined automatically if they still haven't answered. Real UTC times.
+    public DateTime? InsuranceReviewRemindAt { get; set; }
+    public DateTime? InsuranceReviewDueAt { get; set; }
     // When set, the unpaid booking expires at this time instead of CreatedAt + the usual
     // window (after a declined insurance claim the patient gets longer to pay another way).
     public DateTime? PaymentDueAt { get; set; }

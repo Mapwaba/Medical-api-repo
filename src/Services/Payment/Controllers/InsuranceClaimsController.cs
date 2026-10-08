@@ -47,11 +47,17 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
         return Ok(MapToDto(claim));
     }
 
-    // The doctor accepts the patient's cover: the booking counts as paid (insurer pays later)
+    // The doctor accepts the patient's cover: the booking counts as paid (insurer pays later).
+    // The app can't check the cover itself, so the doctor confirms it with the insurer first and
+    // records what the insurer gave them (authorisation number, or the agent's name) as Note.
     [HttpPost("{id:guid}/approve")]
     [Authorize(Roles = "Doctor")]
-    public async Task<IActionResult> Approve(Guid id)
+    public async Task<IActionResult> Approve(Guid id, [FromBody] ClaimActionRequest req)
     {
+        var reference = Clean(req.Note);
+        if (reference is null)
+            return BadRequest(new { error = "Enter the reference the insurer gave you when you checked the cover" });
+
         var claim = await db.InsuranceClaims.FindAsync(id);
         if (claim is null) return NotFound();
         if (claim.DoctorId != CallerId()) return Forbid();
@@ -67,6 +73,7 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
             return Conflict(new { error = "This booking is no longer waiting for payment" });
 
         claim.Status = InsuranceClaimStatus.Approved;
+        claim.AuthorizationReference = reference;
         claim.UpdatedAt = DateTime.UtcNow;
 
         // The ledger row is what tells the rest of the system "this booking is paid for".
@@ -126,16 +133,24 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
     public Task<IActionResult> Settle(Guid id, [FromBody] ClaimActionRequest req) =>
         ReconcileAsync(id, InsuranceClaimStatus.Settled, req);
 
-    // Reconciliation: the insurer refused to pay. The booking stays confirmed — collecting
-    // from the patient directly is between the doctor and the patient.
+    // Reconciliation: the insurer refused to pay. The booking stays confirmed, and the patient
+    // is told they now owe the doctor the amount directly.
     [HttpPost("{id:guid}/reject")]
     [Authorize(Roles = "Doctor")]
-    public Task<IActionResult> Reject(Guid id, [FromBody] ClaimActionRequest req) =>
-        ReconcileAsync(id, InsuranceClaimStatus.Rejected, req);
+    public async Task<IActionResult> Reject(Guid id, [FromBody] ClaimActionRequest req)
+    {
+        var result = await ReconcileAsync(id, InsuranceClaimStatus.Rejected, req);
+        if (result is OkObjectResult { Value: InsuranceClaimDto claim })
+        {
+            await bus.Publish(new InsuranceClaimRejectedEvent(
+                claim.AppointmentId, claim.DoctorId, claim.PatientId, claim.InsurerName, claim.Amount, claim.Note, DateTime.UtcNow));
+        }
+        return result;
+    }
 
     // Shared by settle and reject: only an approved claim can be closed, and the note is stored
-    // as the insurer's reference (settled) or as the reason (rejected). No events — this is
-    // bookkeeping between the doctor and the insurer; the patient's booking doesn't change.
+    // as the insurer's reference (settled) or as the reason (rejected). The patient's booking
+    // doesn't change either way.
     private async Task<IActionResult> ReconcileAsync(Guid id, InsuranceClaimStatus outcome, ClaimActionRequest req)
     {
         var claim = await db.InsuranceClaims.FindAsync(id);
@@ -161,5 +176,5 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
     internal static InsuranceClaimDto MapToDto(Models.InsuranceClaim c) => new(
         c.Id, c.PaymentId, c.AppointmentId, c.DoctorId, c.PatientId,
         c.InsurerId, c.InsurerName, c.MemberNumber, c.MemberName,
-        c.Amount, c.Status, c.Note, c.InsurerReference, c.CreatedAt, c.UpdatedAt);
+        c.Amount, c.Status, c.Note, c.InsurerReference, c.CreatedAt, c.UpdatedAt, c.AuthorizationReference);
 }

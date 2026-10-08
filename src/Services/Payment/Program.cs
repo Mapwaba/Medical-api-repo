@@ -55,6 +55,8 @@ builder.Services.AddMassTransit(x =>
     // Explicit endpoint name — Notification also has a class named BookingExpiredConsumer.
     x.AddConsumer<BookingExpiredConsumer>()
         .Endpoint(e => e.Name = "payment-booking-expired");
+    x.AddConsumer<InsuranceReviewTimedOutConsumer>()
+        .Endpoint(e => e.Name = "payment-insurance-review-timed-out");
     x.UsingRabbitMq((ctx, cfg) =>
     {
         cfg.Host(builder.Configuration["RabbitMq:Host"], ushort.Parse(builder.Configuration["RabbitMq:Port"] ?? "5672"), builder.Configuration["RabbitMq:VirtualHost"] ?? "/", h =>

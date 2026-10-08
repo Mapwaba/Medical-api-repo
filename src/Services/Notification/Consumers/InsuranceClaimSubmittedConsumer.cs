@@ -12,7 +12,7 @@ public class InsuranceClaimSubmittedConsumer(INotificationPublisher publisher) :
         var msg = ctx.Message;
 
         await publisher.PublishAsync(msg.DoctorId, "insurance_claim_submitted", "Prise en charge à vérifier",
-            $"Un patient souhaite payer avec son assurance ({msg.InsurerName}). Vérifiez sa couverture dans Paiements.");
+            $"Un patient souhaite payer avec son assurance ({msg.InsurerName}). Vérifiez sa couverture auprès de l'assureur, puis répondez dans Paiements. Sans réponse à temps, la demande sera refusée automatiquement.");
         await publisher.PublishAsync(msg.PatientId, "insurance_claim_submitted", "Demande de prise en charge envoyée",
             $"Votre demande de prise en charge par {msg.InsurerName} a été envoyée au médecin.");
     }
