@@ -108,6 +108,31 @@ public class AuthController(IAuthService auth) : ControllerBase
     public async Task<IActionResult> AdminUsers([FromQuery] UserRole? role) =>
         Ok(await auth.GetUsersAsync(role));
 
+    // One account, for the Admin app's doctor page (email and phone aren't on the doctor profile)
+    [HttpGet("admin/users/{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AdminGetUser(Guid id)
+    {
+        var user = await auth.GetMeAsync(id);
+        return user is null ? NotFound() : Ok(user);
+    }
+
+    // An admin corrects someone's name or phone. Same checks as a user editing their own
+    // account (PUT me): a name or phone already used by someone else is refused with 409.
+    [HttpPut("admin/users/{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AdminUpdateUser(Guid id, [FromBody] UpdateMeRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await auth.UpdateMeAsync(id, req);
+        return result.Status switch
+        {
+            AuthResultStatus.Success => Ok(result.User),
+            AuthResultStatus.InvalidCredentials => NotFound(),
+            _ => DuplicateConflict(result.Status),
+        };
+    }
+
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest req)
     {

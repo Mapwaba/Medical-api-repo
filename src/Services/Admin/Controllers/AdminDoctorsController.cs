@@ -36,6 +36,27 @@ public class AdminDoctorsController(IDoctorProfileService doctors) : ControllerB
         };
     }
 
+    // An admin edits any doctor's profile: same fields and rules as the doctor editing their own
+    // (null fields stay as they are, duplicate names are refused, live doctors are re-synced to
+    // Search and Payment). Name and phone also live on the doctor's account — the Admin app
+    // saves those through Identity's PUT api/auth/admin/users/{userId}.
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateOwnDoctorProfileRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var profile = await doctors.GetByIdAsync(id);
+        if (profile is null) return NotFound();
+
+        var result = await doctors.UpdateOwnAsync(profile.UserId, req);
+        return result.Status switch
+        {
+            DoctorProfileResultStatus.NotFound => NotFound(),
+            DoctorProfileResultStatus.NameTaken => Conflict(new { error = "A doctor with this first and last name already exists", code = "name" }),
+            DoctorProfileResultStatus.Success => Ok(MapToDto(result.Profile!)),
+            _ => Problem()
+        };
+    }
+
     [HttpPatch("{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id)
     {
