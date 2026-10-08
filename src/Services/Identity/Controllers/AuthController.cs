@@ -4,6 +4,7 @@ using LandaDoc.Shared.DTOs;
 using LandaDoc.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace LandaDoc.Identity.Controllers;
 
@@ -11,6 +12,7 @@ namespace LandaDoc.Identity.Controllers;
 public class AuthController(IAuthService auth) : ControllerBase
 {
     [HttpPost("register")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Register([FromBody] RegisterPatientRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -25,6 +27,7 @@ public class AuthController(IAuthService auth) : ControllerBase
     }
 
     [HttpPost("register-doctor")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> RegisterDoctor([FromBody] RegisterDoctorRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -71,6 +74,7 @@ public class AuthController(IAuthService auth) : ControllerBase
     };
 
     [HttpPost("change-password")]
+    [EnableRateLimiting("auth")]
     [Authorize]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)
     {
@@ -86,6 +90,7 @@ public class AuthController(IAuthService auth) : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login([FromBody] LoginRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
@@ -134,6 +139,7 @@ public class AuthController(IAuthService auth) : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> Refresh([FromBody] RefreshRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);

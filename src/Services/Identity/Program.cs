@@ -6,6 +6,7 @@ using LandaDoc.Identity.Services;
 using MassTransit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -81,17 +82,33 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-// Blunt brute-force/credential-stuffing on the unauthenticated auth endpoints.
+// Blunt brute-force/credential-stuffing on the endpoints that take a password or mint tokens
+// (the actions marked [EnableRateLimiting("auth")] in AuthController): 10 tries a minute per
+// client IP. Counting per IP matters — one shared counter would let a handful of ordinary users
+// lock everybody out — and everything else (profile reads on every page load, admin calls) is
+// left unlimited.
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    o.AddFixedWindowLimiter("auth", opt =>
+    o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(ClientIp(ctx), _ => new FixedWindowRateLimiterOptions
     {
-        opt.Window = TimeSpan.FromMinutes(1);
-        opt.PermitLimit = 10;
-        opt.QueueLimit = 0;
-    });
+        Window = TimeSpan.FromMinutes(1),
+        PermitLimit = 10,
+        QueueLimit = 0,
+    }));
 });
+
+// The caller's IP. In production we sit behind a proxy (Render, or Caddy in the Docker setup), so
+// RemoteIpAddress is the proxy's address for everyone; the proxy appends the real client to
+// X-Forwarded-For, and taking the LAST entry means a client can't dodge the limit by sending a
+// made-up header of its own (anything it sends ends up to the left).
+static string ClientIp(HttpContext ctx)
+{
+    var forwardedFor = ctx.Request.Headers["X-Forwarded-For"].ToString();
+    if (!string.IsNullOrWhiteSpace(forwardedFor))
+        return forwardedFor.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Last();
+    return ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? new[] { "http://localhost:5299", "http://localhost:5003", "http://localhost:5500" };
@@ -145,7 +162,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers().RequireRateLimiting("auth");
+app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 app.Run();
