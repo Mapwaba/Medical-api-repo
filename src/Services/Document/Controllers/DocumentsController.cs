@@ -15,7 +15,8 @@ namespace LandaDoc.Document.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 public class DocumentsController(
-    DocumentDbContext db, IAmazonS3 s3, IConfiguration cfg, IAppointmentAccessClient appointments) : ControllerBase
+    DocumentDbContext db, IAmazonS3 s3, IConfiguration cfg, IAppointmentAccessClient appointments,
+    ILogger<DocumentsController> log) : ControllerBase
 {
     private string BucketName => cfg["S3:BucketName"]!;
 
@@ -37,15 +38,28 @@ public class DocumentsController(
         if (denied is not null) return denied;
 
         var storageKey = $"{patientId}/{Guid.NewGuid()}-{file.FileName}";
-        await using (var stream = file.OpenReadStream())
+        try
         {
+            await using var stream = file.OpenReadStream();
             await s3.PutObjectAsync(new PutObjectRequest
             {
                 BucketName = BucketName,
                 Key = storageKey,
                 InputStream = stream,
-                ContentType = file.ContentType
+                ContentType = file.ContentType,
+                // Cloudflare R2 doesn't accept the SDK's streamed request signing; sending the body
+                // unsigned is safe over HTTPS (the request itself is still signed). Plain-HTTP storage
+                // (local MinIO) requires signed bodies, so it keeps the default there.
+                DisablePayloadSigning = cfg["S3:ServiceUrl"]?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true,
             });
+        }
+        catch (Exception ex) when (ex is AmazonS3Exception or Amazon.Runtime.AmazonClientException or HttpRequestException or IOException)
+        {
+            // Answer properly instead of letting the request crash: a crashed request reaches the
+            // browser without its CORS headers, so the app only sees "failed to fetch".
+            log.LogError(ex, "Couldn't store an upload for patient {PatientId} (appointment {AppointmentId}, {SizeBytes} bytes, {ContentType})",
+                patientId, appointmentId, file.Length, file.ContentType);
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = "The file couldn't be stored. Please try again." });
         }
 
         var doc = new Models.Document
@@ -62,6 +76,8 @@ public class DocumentsController(
         };
         db.Documents.Add(doc);
         await db.SaveChangesAsync();
+        log.LogInformation("Document {DocumentId} ({Category}, {SizeBytes} bytes) uploaded by {UserId} for patient {PatientId}, appointment {AppointmentId}",
+            doc.Id, doc.Category, doc.SizeBytes, callerId, patientId, appointmentId);
 
         return StatusCode(201, MapToDto(doc));
     }

@@ -21,7 +21,12 @@ builder.Services.AddSingleton<IAmazonS3>(_ =>
     var s3Config = new AmazonS3Config
     {
         ServiceURL = builder.Configuration["S3:ServiceUrl"],
-        ForcePathStyle = true
+        ForcePathStyle = true,
+        // Since early 2025 the AWS SDK adds integrity checksums to every upload by default, sent in a
+        // "chunked" format that Cloudflare R2 (production storage) rejects, while local MinIO accepts
+        // it. Only send/check checksums when an operation requires them, which works with both.
+        RequestChecksumCalculation = Amazon.Runtime.RequestChecksumCalculation.WHEN_REQUIRED,
+        ResponseChecksumValidation = Amazon.Runtime.ResponseChecksumValidation.WHEN_REQUIRED,
     };
     return new AmazonS3Client(
         builder.Configuration["S3:AccessKey"],
