@@ -18,6 +18,8 @@ builder.Services.AddDbContext<PaymentDbContext>(o =>
 
 StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
 
+builder.Services.AddScoped<DoctorBalances>();
+
 builder.Services.Configure<MokoAfrikaOptions>(builder.Configuration.GetSection("MokoAfrika"));
 builder.Services.AddHttpClient<IMokoAfrikaClient, MokoAfrikaClient>(c =>
     c.BaseAddress = new Uri(builder.Configuration["MokoAfrika:BaseUrl"]!));

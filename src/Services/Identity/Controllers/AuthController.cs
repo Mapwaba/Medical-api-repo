@@ -1,3 +1,4 @@
+using LandaDoc.Shared.Locations;
 using System.Security.Claims;
 using LandaDoc.Identity.Services;
 using LandaDoc.Shared.DTOs;
@@ -16,6 +17,7 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
     public async Task<IActionResult> Register([FromBody] RegisterPatientRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (req.Country is not null && !Locations.IsCountry(req.Country)) return UnknownCountry();
         var result = await auth.RegisterPatientAsync(req);
         if (result.Status == AuthResultStatus.Success)
             log.LogInformation("Patient account {UserId} registered", result.Response!.User.Id);
@@ -35,6 +37,7 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
     public async Task<IActionResult> RegisterDoctor([FromBody] RegisterDoctorRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (req.Country is not null && !Locations.IsCountry(req.Country)) return UnknownCountry();
         var result = await auth.RegisterDoctorAsync(req);
         if (result.Status == AuthResultStatus.Success)
             log.LogInformation("Doctor account {UserId} registered", result.Response!.User.Id);
@@ -74,6 +77,21 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
             _ => DuplicateConflict(result.Status),
         };
     }
+
+    // The signed-in user's address and (patients) ID card / passport number
+    [HttpPut("me/address")]
+    [Authorize]
+    public async Task<IActionResult> UpdateAddress([FromBody] UpdateAddressRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (!Locations.IsCountry(req.Country)) return UnknownCountry();
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var user = await auth.UpdateAddressAsync(userId, req);
+        if (user is not null) log.LogInformation("User {UserId} updated their address (country {Country})", userId, user.Country);
+        return user is null ? NotFound() : Ok(user);
+    }
+
+    private BadRequestObjectResult UnknownCountry() => BadRequest(new { error = "Unknown country code" });
 
     // 409 with "code" (email | phone | name) so the apps can say exactly which value is taken
     private ConflictObjectResult DuplicateConflict(AuthResultStatus status) => status switch

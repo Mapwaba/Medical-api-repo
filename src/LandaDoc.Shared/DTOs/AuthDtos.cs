@@ -12,7 +12,14 @@ public record RegisterPatientRequest(
 [Required] string LastName,
 string? Phone,
 DateOnly? DateOfBirth,
-string? Gender
+string? Gender,
+// Where the patient lives (Country = ISO code, e.g. "CD") and their ID card / passport number.
+// Optional here so older app versions can still register; the web app asks for the country.
+[StringLength(2)] string? Country = null,
+[StringLength(100)] string? Province = null,
+[StringLength(100)] string? City = null,
+[StringLength(20)] string? PostalCode = null,
+[StringLength(50)] string? IdNumber = null
 );
 
 public record RegisterDoctorRequest(
@@ -20,7 +27,12 @@ public record RegisterDoctorRequest(
 [Required, MinLength(8), MaxLength(100)] string Password,
 [Required] string FirstName,
 [Required] string LastName,
-string? Phone
+string? Phone,
+// Where the doctor lives (see RegisterPatientRequest); their ID documents are uploaded separately
+[StringLength(2)] string? Country = null,
+[StringLength(100)] string? Province = null,
+[StringLength(100)] string? City = null,
+[StringLength(20)] string? PostalCode = null
 );
 
 public record AuthResponse(string Token, string RefreshToken, UserDto User);
@@ -30,7 +42,9 @@ string FirstName, string LastName,
 string? Phone, string? AvatarUrl,
 Guid? ProfileId,
 bool IsApproved, bool IsActive,
-DateOnly? DateOfBirth, string? Gender
+DateOnly? DateOfBirth, string? Gender,
+string? Country = null, string? Province = null, string? City = null, string? PostalCode = null,
+string? IdNumber = null
 );
 
 public record UserCountsDto(int PatientCount, int DoctorCount);
@@ -52,6 +66,15 @@ public record UpdateMeRequest(
     [Required, StringLength(100)] string FirstName,
     [Required, StringLength(100)] string LastName,
     [StringLength(30)] string? Phone
+);
+
+// Where someone lives, and (patients) their ID card / passport number. Country is an ISO code.
+public record UpdateAddressRequest(
+    [Required, StringLength(2)] string Country,
+    [StringLength(100)] string? Province,
+    [StringLength(100)] string? City,
+    [StringLength(20)] string? PostalCode,
+    [StringLength(50)] string? IdNumber
 );
 
 public record ChangePasswordRequest(

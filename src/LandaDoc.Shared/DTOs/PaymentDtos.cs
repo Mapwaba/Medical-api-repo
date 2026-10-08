@@ -44,3 +44,38 @@ public record AcceptedInsurersDto(bool AcceptsAll, List<Guid> InsurerIds);
 
 // Note is the reason on decline/reject, and the insurer's payment reference on settle.
 public record ClaimActionRequest(string? Note);
+
+// ── Doctor payouts ──────────────────────────────────────────────────
+// LandaDoc collects card and mobile money payments, then pays each doctor their share. An admin
+// sends the money (outside the app) and records it here; the doctor sees their balance and history.
+
+// Where the doctor wants to be paid. Changing it clears IsVerified until an admin checks it again.
+public record PayoutAccountDto(
+    Guid DoctorId, PayoutMethod Method, string AccountName,
+    MobileMoneyOperator? Operator, string? MobileNumber,
+    string? BankName, string? BankAccountNumber,
+    bool IsVerified, DateTime? VerifiedAt, DateTime UpdatedAt);
+
+public record SavePayoutAccountRequest(
+    PayoutMethod Method,
+    [Required, StringLength(120)] string AccountName,
+    MobileMoneyOperator? Operator,
+    [StringLength(30)] string? MobileNumber,
+    [StringLength(120)] string? BankName,
+    [StringLength(60)] string? BankAccountNumber);
+
+// What LandaDoc owes a doctor: their share of card and mobile money payments, minus LandaDoc's
+// fee on insurance claims the insurer paid them directly, minus what was already paid out.
+// Balance can be negative when insurance fees exceed new earnings.
+public record DoctorBalanceDto(
+    Guid DoctorId, decimal Earned, decimal InsuranceFees, decimal PaidOut, decimal Balance,
+    DateTime? LastPayoutAt, PayoutAccountDto? Account);
+
+public record PayoutDto(Guid Id, Guid DoctorId, decimal Amount, string PaidTo, string? Reference, string? Note, DateTime PaidAt);
+
+public record DoctorPayoutsDto(DoctorBalanceDto Balance, List<PayoutDto> Payouts);
+
+public record RecordPayoutRequest(
+    [Range(0.01, 1_000_000)] decimal Amount,
+    [StringLength(100)] string? Reference,
+    [StringLength(300)] string? Note);

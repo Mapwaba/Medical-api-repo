@@ -12,6 +12,13 @@ public string? Phone { get; set; }
 public string? AvatarUrl { get; set; }
 public DateOnly? DateOfBirth { get; set; }
 public Gender? Gender { get; set; }
+// Where the person lives: Country is an ISO 3166-1 code ("CD"), the rest free text
+public string? Country { get; set; }
+public string? Province { get; set; }
+public string? City { get; set; }
+public string? PostalCode { get; set; }
+// ID card or passport number (patients)
+public string? IdNumber { get; set; }
 public bool IsActive { get; set; } = true;
 public bool IsApproved { get; set; } = true; // false for new doctors
 public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

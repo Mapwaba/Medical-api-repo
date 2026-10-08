@@ -10,6 +10,8 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<Models.Insurer> Insurers => Set<Models.Insurer>();
     public DbSet<Models.InsuranceClaim> InsuranceClaims => Set<Models.InsuranceClaim>();
     public DbSet<Models.DoctorInsurerChoice> DoctorInsurerChoices => Set<Models.DoctorInsurerChoice>();
+    public DbSet<Models.DoctorPayoutAccount> DoctorPayoutAccounts => Set<Models.DoctorPayoutAccount>();
+    public DbSet<Models.DoctorPayout> DoctorPayouts => Set<Models.DoctorPayout>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -94,6 +96,39 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             e.Property(x => x.DoctorId).HasColumnName("doctor_id");
             e.Property(x => x.InsurerIds).HasColumnName("insurer_ids");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        // Where each doctor is paid (one per doctor), and the payouts made to them
+        mb.Entity<Models.DoctorPayoutAccount>(e =>
+        {
+            e.ToTable("doctor_payout_accounts");
+            e.HasKey(x => x.DoctorId);
+            e.Property(x => x.DoctorId).HasColumnName("doctor_id");
+            e.Property(x => x.Method).HasColumnName("method").HasConversion<string>();
+            e.Property(x => x.AccountName).HasColumnName("account_name").HasMaxLength(120);
+            e.Property(x => x.Operator).HasColumnName("operator").HasConversion<string>();
+            e.Property(x => x.MobileNumber).HasColumnName("mobile_number").HasMaxLength(30);
+            e.Property(x => x.BankName).HasColumnName("bank_name").HasMaxLength(120);
+            e.Property(x => x.BankAccountNumber).HasColumnName("bank_account_number").HasMaxLength(60);
+            e.Property(x => x.IsVerified).HasColumnName("is_verified");
+            e.Property(x => x.VerifiedAt).HasColumnName("verified_at");
+            e.Property(x => x.VerifiedByAdminId).HasColumnName("verified_by_admin_id");
+            e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        mb.Entity<Models.DoctorPayout>(e =>
+        {
+            e.ToTable("doctor_payouts");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.DoctorId).HasColumnName("doctor_id");
+            e.Property(x => x.Amount).HasColumnName("amount").HasPrecision(10, 2);
+            e.Property(x => x.PaidTo).HasColumnName("paid_to");
+            e.Property(x => x.Reference).HasColumnName("reference").HasMaxLength(100);
+            e.Property(x => x.Note).HasColumnName("note").HasMaxLength(300);
+            e.Property(x => x.RecordedByAdminId).HasColumnName("recorded_by_admin_id");
+            e.Property(x => x.PaidAt).HasColumnName("paid_at");
+            e.HasIndex(x => x.DoctorId);
         });
     }
 }

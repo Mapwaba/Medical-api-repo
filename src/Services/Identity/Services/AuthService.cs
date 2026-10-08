@@ -65,6 +65,11 @@ public class AuthService(
             Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim(),
             DateOfBirth = req.DateOfBirth,
             Gender = string.IsNullOrEmpty(req.Gender) ? null : gender,
+            Country = CountryCode(req.Country),
+            Province = Clean(req.Province),
+            City = Clean(req.City),
+            PostalCode = Clean(req.PostalCode),
+            IdNumber = Clean(req.IdNumber),
             IsActive = true,
             IsApproved = true // patients are auto-approved; doctors require admin approval
         };
@@ -99,6 +104,10 @@ public class AuthService(
             FirstName = req.FirstName.Trim(),
             LastName = req.LastName.Trim(),
             Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim(),
+            Country = CountryCode(req.Country),
+            Province = Clean(req.Province),
+            City = Clean(req.City),
+            PostalCode = Clean(req.PostalCode),
             IsActive = true,
             IsApproved = false // doctors require admin approval before they can log in
         };
@@ -163,6 +172,26 @@ public class AuthService(
         return new UpdateMeResult(AuthResultStatus.Success, MapToDto(user));
     }
 
+    public async Task<UserDto?> UpdateAddressAsync(Guid userId, UpdateAddressRequest req)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return null;
+
+        user.Country = CountryCode(req.Country);
+        user.Province = Clean(req.Province);
+        user.City = Clean(req.City);
+        user.PostalCode = Clean(req.PostalCode);
+        user.IdNumber = Clean(req.IdNumber);
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return MapToDto(user);
+    }
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    // Callers check Locations.IsCountry first; stored upper-case ("CD")
+    private static string? CountryCode(string? value) => Clean(value)?.ToUpperInvariant();
+
     public async Task<AuthResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest req)
     {
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -203,5 +232,6 @@ public class AuthService(
     private static UserDto MapToDto(User user) => new(
         user.Id, user.Email, user.Role.ToString(),
         user.FirstName ?? "", user.LastName ?? "", user.Phone, user.AvatarUrl, null,
-        user.IsApproved, user.IsActive, user.DateOfBirth, user.Gender?.ToString());
+        user.IsApproved, user.IsActive, user.DateOfBirth, user.Gender?.ToString(),
+        user.Country, user.Province, user.City, user.PostalCode, user.IdNumber);
 }

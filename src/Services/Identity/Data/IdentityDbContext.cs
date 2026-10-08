@@ -29,6 +29,11 @@ public class IdentityDbContext(DbContextOptions<IdentityDbContext> options)
             e.Property(x => x.AvatarUrl).HasColumnName("avatar_url");
             e.Property(x => x.DateOfBirth).HasColumnName("date_of_birth");
             e.Property(x => x.Gender).HasColumnName("gender").HasConversion<string>();
+            e.Property(x => x.Country).HasColumnName("country").HasMaxLength(2);
+            e.Property(x => x.Province).HasColumnName("province").HasMaxLength(100);
+            e.Property(x => x.City).HasColumnName("city").HasMaxLength(100);
+            e.Property(x => x.PostalCode).HasColumnName("postal_code").HasMaxLength(20);
+            e.Property(x => x.IdNumber).HasColumnName("id_number").HasMaxLength(50);
             e.Property(x => x.IsActive).HasColumnName("is_active")
                 .HasDefaultValue(true);
             e.Property(x => x.IsApproved).HasColumnName("is_approved")

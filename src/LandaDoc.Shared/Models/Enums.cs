@@ -8,6 +8,8 @@ public enum PaymentProvider { Stripe, MokoAfrika, Insurance }
 // review deadline; Approved → (insurer, recorded by the doctor) Settled or Rejected
 public enum InsuranceClaimStatus { Submitted, Approved, Declined, Settled, Rejected, Expired }
 public enum MobileMoneyOperator { Airtel, Orange, Mpesa, Africell }
+// How LandaDoc sends a doctor their earnings
+public enum PayoutMethod { MobileMoney, Bank }
 public enum DayOfWeekEnum { Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday }
 public enum Gender { Male, Female, Other }
 public enum ClinicType { PrivatePractice, Clinic, Hospital, Lab }
