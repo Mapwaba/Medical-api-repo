@@ -10,10 +10,16 @@ namespace LandaDoc.Availability.Services;
 public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexer redis) : IAvailabilityService
 {
     // The day's free slots, without those that have already started on the doctor's clock
-    public async Task<List<string>> GetSlotsAsync(Guid doctorId, DateOnly date)
+    public async Task<List<string>> GetSlotsAsync(Guid doctorId, DateOnly date) =>
+        (await GetSlotsWithZoneAsync(doctorId, date)).Slots;
+
+    // The same, with the zone of the doctor's clock the times are on
+    public async Task<SlotsResponse> GetSlotsWithZoneAsync(Guid doctorId, DateOnly date)
     {
         var day = await GetDaySlotsAsync(doctorId, date);
-        return day is null ? [] : StillBookable(day.Slots, date, LocalClock.Now(day.TimeZone));
+        return day is null
+            ? new SlotsResponse([])
+            : new SlotsResponse(StillBookable(day.Slots, date, LocalClock.Now(day.TimeZone)), day.TimeZone);
     }
 
     // Slots on a past day, or earlier today than now (a slot that's started can't be booked)

@@ -14,4 +14,6 @@ public record ScheduleDayDto(
 // doctor's browser; null keeps the one saved before (Kinshasa by default). See LocalClock.
 public record UpdateScheduleRequest([Required] List<ScheduleDayDto> Days, [StringLength(64)] string? TimeZone = null);
 
-public record SlotsResponse(List<string> Slots);
+// Slots are "HH:mm" on the doctor's clock; TimeZone is that clock's IANA zone ("Africa/Kinshasa"),
+// null when the doctor doesn't work that day. The Patient app uses it to show the viewer's time too.
+public record SlotsResponse(List<string> Slots, string? TimeZone = null);

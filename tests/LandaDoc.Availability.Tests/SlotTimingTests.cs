@@ -30,6 +30,30 @@ public class SlotTimingTests
         Assert.Equal(new DateTime(2026, 9, 9, hour, minute, 0), now);
     }
 
+    // What a viewer elsewhere sees next to each time (the Patient app's "11:00 your time")
+    [Theory]
+    [InlineData("Africa/Kinshasa", "16:00", "America/Toronto", "2026-10-09 11:00")]     // UTC+1 vs EDT (UTC-4)
+    [InlineData("Africa/Lubumbashi", "16:00", "America/Toronto", "2026-10-09 10:00")]
+    [InlineData("Africa/Kinshasa", "16:00", "Africa/Kinshasa", "2026-10-09 16:00")]     // same clock: nothing to add
+    [InlineData("Africa/Kinshasa", "16:00", "Africa/Lagos", "2026-10-09 16:00")]        // another UTC+1 zone reads the same
+    [InlineData("Africa/Kinshasa", "23:00", "Asia/Tokyo", "2026-10-10 07:00")]          // the viewer's next day
+    public void A_slot_is_shown_on_the_viewers_clock(string doctorZone, string slot, string viewerZone, string expected)
+    {
+        var viewer = TimeZoneInfo.FindSystemTimeZoneById(viewerZone);
+
+        var onViewersClock = LocalClock.OnClock(new DateOnly(2026, 10, 9), TimeOnly.Parse(slot), doctorZone, viewer);
+
+        Assert.Equal(DateTime.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), onViewersClock);
+    }
+
+    [Fact]
+    public void The_doctors_zone_is_named_by_its_city()
+    {
+        Assert.Equal("Lubumbashi", LocalClock.CityOf("Africa/Lubumbashi"));
+        Assert.Equal("Kinshasa", LocalClock.CityOf(null));
+        Assert.Equal(new DateTime(2026, 10, 9, 15, 0, 0, DateTimeKind.Utc), LocalClock.ToUtc(new DateTime(2026, 10, 9, 16, 0, 0), "Africa/Kinshasa"));
+    }
+
     [Fact]
     public void At_3_32_PM_in_Kinshasa_only_the_slots_still_ahead_are_offered()
     {

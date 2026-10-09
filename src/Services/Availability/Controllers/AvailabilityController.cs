@@ -12,7 +12,7 @@ public class AvailabilityController(IAvailabilityService availability) : Control
 {
     [HttpGet("slots")]
     public async Task<IActionResult> GetSlots([FromQuery] Guid doctorId, [FromQuery] DateOnly date) =>
-        Ok(new SlotsResponse(await availability.GetSlotsAsync(doctorId, date)));
+        Ok(await availability.GetSlotsWithZoneAsync(doctorId, date));
 
     [HttpGet("schedule/mine")]
     [Authorize(Roles = "Doctor")]
