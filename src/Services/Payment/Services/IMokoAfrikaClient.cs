@@ -1,3 +1,4 @@
+using LandaDoc.Shared.DTOs;
 using LandaDoc.Shared.Models;
 
 namespace LandaDoc.Payment.Services;
@@ -23,6 +24,10 @@ public interface IMokoAfrikaClient
     // Used to trust plain (unsigned) callbacks and by the reconciliation job.
     Task<MokoVerifyResult> VerifyAsync(string reference, CancellationToken ct = default);
 
+    // LandaDoc's wallets at FreshPay (what was collected, what's available for payouts);
+    // null when FreshPay can't be reached or refuses the credentials
+    Task<List<MobileMoneyWalletDto>?> GetBalancesAsync(CancellationToken ct = default);
+
     // Callback verification — the encrypted `data` field's HMAC-SHA256 signature and its
     // AES-CBC decryption, both keyed off MokoAfrikaOptions.
     bool VerifySignature(string encryptedData, string signature);
@@ -31,12 +36,14 @@ public interface IMokoAfrikaClient
 
 // FreshPay's final transaction statuses (Trans_Status); anything else ("Pending") is still in
 // progress. The Moko Afrika developer portal and sandbox say "Successful"; the older PayDRC PDF
-// said "Success". Both mean paid.
+// said "Success". Both mean paid. Its Postman collection also lists "Rejected", a failure.
 public static class MokoStatus
 {
     public static bool IsSuccess(string? transStatus) =>
         string.Equals(transStatus, "Successful", StringComparison.OrdinalIgnoreCase)
         || string.Equals(transStatus, "Success", StringComparison.OrdinalIgnoreCase);
-    public static bool IsFailure(string? transStatus) => string.Equals(transStatus, "Failed", StringComparison.OrdinalIgnoreCase);
+    public static bool IsFailure(string? transStatus) =>
+        string.Equals(transStatus, "Failed", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(transStatus, "Rejected", StringComparison.OrdinalIgnoreCase);
     public static bool IsFinal(string? transStatus) => IsSuccess(transStatus) || IsFailure(transStatus);
 }

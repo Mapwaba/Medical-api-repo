@@ -125,6 +125,40 @@ public class MokoAfrikaClientTests
         Assert.Equal("FreshPay answered HTTP 502", result.Comment);
     }
 
+    // The live sandbox's shape (amounts as numbers, in a "balances" list)
+    [Fact]
+    public async Task Balances_are_read_from_the_live_format()
+    {
+        var handler = new CannedHandler(HttpStatusCode.OK, """
+            {"Status":"Success","Comment":"Balances retrieved","merchant_code":"m1","balances":[
+              {"wallet_code":"wc001","operator":"Vodacom","currency":"USD","wallet_type":"credit","amount":500.0},
+              {"wallet_code":"wd001","operator":"Vodacom","currency":"USD","wallet_type":"debit","amount":12.5}]}
+            """);
+
+        var wallets = await Client(handler).GetBalancesAsync();
+
+        Assert.Equal([new("Vodacom", "USD", "credit", 500m), new("Vodacom", "USD", "debit", 12.5m)], wallets);
+        Assert.Equal("merchant", Field(handler.LastRequest, "merchant_id"));
+    }
+
+    // The Postman collection's shape (a bare list, amounts as text)
+    [Fact]
+    public async Task Balances_are_read_from_the_older_format()
+    {
+        var wallets = await Client(new CannedHandler(HttpStatusCode.OK, """
+            [{"Operator":"airtel","Wallet_Type":"credit","Balance":"0.33500000000000085","Currency":"USD"},
+             {"Operator":"orange","Wallet_Type":"debit","Balance":"675.5","Currency":"CDF"}]
+            """)).GetBalancesAsync();
+
+        Assert.Equal([new("airtel", "USD", "credit", 0.33500000000000085m), new("orange", "CDF", "debit", 675.5m)], wallets);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, """{"detail":"Merchant is not active or not found."}""")]
+    [InlineData(HttpStatusCode.OK, """{"Status":"Error","Comment":"nope"}""")]
+    public async Task Balances_are_null_when_FreshPay_refuses(HttpStatusCode status, string reply) =>
+        Assert.Null(await Client(new CannedHandler(status, reply)).GetBalancesAsync());
+
     [Fact]
     public async Task An_unreachable_FreshPay_is_a_refusal_that_says_so()
     {

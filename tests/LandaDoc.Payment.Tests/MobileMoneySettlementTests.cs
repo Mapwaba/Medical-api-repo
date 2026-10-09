@@ -71,6 +71,18 @@ public class MobileMoneySettlementTests
     }
 
     [Fact]
+    public async Task A_rejected_payment_fails_the_booking_straight_away()
+    {
+        var (payment, attempt) = PendingPrompt();
+
+        var outcome = await Settlement.ApplyAsync(attempt.Reference, "PD123", "Rejected", "Rejected by the operator", "test");
+
+        Assert.Equal(SettlementOutcome.Recorded, outcome);
+        Assert.Equal(PaymentStatus.Failed, (await _db.Payments.SingleAsync(p => p.ProviderRef == "PD123")).Status);
+        await _bus.Received(1).Publish(Arg.Is<PaymentFailedEvent>(e => e.AppointmentId == payment.AppointmentId), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Failure_adds_a_failed_row_with_the_operators_reason()
     {
         var (payment, attempt) = PendingPrompt();

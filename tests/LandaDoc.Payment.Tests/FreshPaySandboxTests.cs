@@ -155,6 +155,17 @@ public class FreshPaySandboxTests
         Assert.Equal(expected, row.Status);
     }
 
+    // Every sandbox merchant gets wallets for each operator, seeded for payouts
+    [SkippableFact]
+    public async Task The_wallet_balances_are_read()
+    {
+        var wallets = await Client().GetBalancesAsync();
+
+        Assert.NotNull(wallets);
+        Assert.Contains(wallets, w => w.Operator == "Vodacom" && w.WalletType == "credit");
+        Assert.Contains(wallets, w => w.WalletType == "debit");
+    }
+
     // The case the reconciliation job exists for: no callback, and verify keeps saying it isn't
     // final, so the app must neither confirm nor fail it on its own
     [SkippableTheory]

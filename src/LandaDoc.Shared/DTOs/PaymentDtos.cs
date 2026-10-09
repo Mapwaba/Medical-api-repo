@@ -79,3 +79,8 @@ public record RecordPayoutRequest(
     [Range(0.01, 1_000_000)] decimal Amount,
     [StringLength(100)] string? Reference,
     [StringLength(300)] string? Note);
+
+// One wallet of LandaDoc's mobile money account at Moko Afrika (FreshPay), per operator and
+// currency: "debit" wallets receive what patients pay, "credit" wallets fund payouts (a payout
+// fails when its credit wallet is short).
+public record MobileMoneyWalletDto(string Operator, string Currency, string WalletType, decimal Amount);

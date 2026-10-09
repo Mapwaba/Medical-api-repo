@@ -70,6 +70,20 @@ public class PayoutsController(PaymentDbContext db, DoctorBalances balances, IPu
     [Authorize(Roles = "Admin")]
     public Task<IActionResult> GetForDoctor(Guid doctorId) => SummaryAsync(doctorId);
 
+    // LandaDoc's wallets at Moko Afrika (FreshPay): collected payments, and what can be paid out
+    [HttpGet("mobile-money-wallets")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetMobileMoneyWallets([FromServices] IMokoAfrikaClient moko, CancellationToken ct)
+    {
+        var wallets = await moko.GetBalancesAsync(ct);
+        if (wallets is null)
+        {
+            log.LogWarning("Moko Afrika balances couldn't be read (unreachable, or credentials refused)");
+            return StatusCode(StatusCodes.Status502BadGateway, new { error = "Moko Afrika didn't return the balances" });
+        }
+        return Ok(wallets);
+    }
+
     // The admin has confirmed the account really is the doctor's
     [HttpPost("doctor/{doctorId:guid}/account/verify")]
     [Authorize(Roles = "Admin")]

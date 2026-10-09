@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using LandaDoc.Shared.DTOs;
 using LandaDoc.Shared.Models;
 using Microsoft.Extensions.Options;
 
@@ -100,6 +101,56 @@ public class MokoAfrikaClient(HttpClient http, IOptions<MokoAfrikaOptions> optio
             Text(body, "Trans_Status"),
             Text(body, "Transaction_id") ?? Text(body, "PayDRC_Reference"),
             Text(body, "Trans_Status_Description"));
+    }
+
+    // POST <api>/account/balance (next to <api>/gateway) with the merchant's credentials. The live
+    // API answers {"Status":"Success","balances":[{"operator","currency","wallet_type","amount"}]};
+    // its older Postman collection shows a bare list of {"Operator","Wallet_Type","Balance","Currency"}
+    // with the amount as text. Both are read; null when FreshPay can't be reached or refuses.
+    public async Task<List<MobileMoneyWalletDto>?> GetBalancesAsync(CancellationToken ct = default)
+    {
+        var gateway = http.BaseAddress!.AbsoluteUri.TrimEnd('/');
+        var api = gateway.EndsWith("/gateway", StringComparison.OrdinalIgnoreCase) ? gateway[..^"/gateway".Length] : gateway;
+        var payload = new Dictionary<string, string?>
+        {
+            ["merchant_id"] = _options.MerchantId,
+            ["merchant_secrete"] = _options.MerchantSecret,
+        };
+
+        JsonElement body;
+        try
+        {
+            var response = await http.PostAsJsonAsync($"{api}/account/balance", payload, ct);
+            if (!response.IsSuccessStatusCode) return null;
+            body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or NotSupportedException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            return null;
+        }
+
+        var list = body.ValueKind == JsonValueKind.Array ? body
+            : body.ValueKind == JsonValueKind.Object && body.TryGetProperty("balances", out var b) && b.ValueKind == JsonValueKind.Array ? b
+            : default;
+        if (list.ValueKind != JsonValueKind.Array) return null;
+
+        return list.EnumerateArray()
+            .Where(w => w.ValueKind == JsonValueKind.Object)
+            .Select(w => new MobileMoneyWalletDto(
+                Text(w, "operator") ?? Text(w, "Operator") ?? "?",
+                Text(w, "currency") ?? Text(w, "Currency") ?? "?",
+                (Text(w, "wallet_type") ?? Text(w, "Wallet_Type") ?? "?").ToLowerInvariant(),
+                Number(w, "amount") ?? Number(w, "Balance") ?? 0m))
+            .ToList();
+    }
+
+    // A number FreshPay may send as a number or as text ("0.33500000000000085")
+    private static decimal? Number(JsonElement body, string name)
+    {
+        if (!body.TryGetProperty(name, out var v)) return null;
+        if (v.ValueKind == JsonValueKind.Number && v.TryGetDecimal(out var n)) return n;
+        return v.ValueKind == JsonValueKind.String
+            && decimal.TryParse(v.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var t) ? t : null;
     }
 
     // FreshPay's "method" values: airtel, orange, mpesa, afrimoney (Africell's service)

@@ -99,6 +99,19 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 app.UseLandaDocRequestLogging();
 
+// Which FreshPay account this instance talks to, so a wrong deploy setting shows in the logs
+// ("Merchant is not active or not found" means the merchant id isn't one FreshPay knows).
+// The id is shortened and the secret only counted, never written out.
+{
+    static string Shorten(string? value) => string.IsNullOrWhiteSpace(value) ? "(not set)"
+        : value.Length <= 10 ? $"({value.Length} characters)" : $"{value[..4]}…{value[^4..]} ({value.Length} characters)";
+    var moko = app.Configuration.GetSection("MokoAfrika");
+    app.Logger.LogInformation("Mobile money: FreshPay gateway {Gateway}, merchant {MerchantId}, secret {Secret}",
+        string.IsNullOrWhiteSpace(mokoBaseUrl) ? "https://api.gofreshpay.com/api/v1/gateway (default)" : mokoBaseUrl,
+        Shorten(moko["MerchantId"]),
+        string.IsNullOrWhiteSpace(moko["MerchantSecret"]) ? "(not set)" : $"set ({moko["MerchantSecret"]!.Length} characters)");
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
