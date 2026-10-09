@@ -40,12 +40,24 @@ public class MokoAfrikaClient(HttpClient http, IOptions<MokoAfrikaOptions> optio
         };
 
         var response = await http.PostAsJsonAsync("", payload);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        JsonElement body;
+        try
+        {
+            body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+        catch (JsonException)
+        {
+            return new MokoDebitResult(false, null, $"FreshPay answered HTTP {(int)response.StatusCode}");
+        }
 
-        var status = body.TryGetProperty("Status", out var s) ? s.GetString() : null;
-        var comment = body.TryGetProperty("Comment", out var c) ? c.GetString() : null;
-        var transactionId = body.TryGetProperty("Transaction_id", out var t) ? t.GetString() : null;
-        return new MokoDebitResult(response.IsSuccessStatusCode && status == "Success", transactionId, comment);
+        // The reply only acknowledges the request: usually "Success", but a prompt still waiting on
+        // the operator can come back as "Pending". Only an explicit error is a refusal; the outcome
+        // arrives later (callback or verify). Refusals carry "Comment", or "detail" for a malformed request.
+        var status = Text(body, "Status");
+        var refused = string.Equals(status, "Error", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "Failed", StringComparison.OrdinalIgnoreCase);
+        return new MokoDebitResult(response.IsSuccessStatusCode && status is not null && !refused,
+            Text(body, "Transaction_id"), Text(body, "Comment") ?? Text(body, "detail"));
     }
 
     // FreshPay replies {"Status":"Success","Comment":"Transaction Found","Trans_Status":..., "Transaction_id":...}

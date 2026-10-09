@@ -117,6 +117,18 @@ public class MokoWebhookTests
         await _moko.DidNotReceiveWithAnyArgs().VerifyAsync(default!, default);
     }
 
+    [Fact]
+    public async Task The_portals_signed_paid_callback_confirms_the_booking()
+    {
+        var reference = PendingPrompt();
+        _moko.VerifySignature("abc", "good").Returns(true);
+        _moko.Decrypt("abc").Returns(FreshPaySamples.PortalPaidCallback.Replace("\"order_001\"", $"\"{reference}\""));
+
+        await PostAsync("""{"data":"abc"}""", signature: "good");
+
+        Assert.Equal(PaymentStatus.Completed, (await _db.Payments.SingleAsync(p => p.ProviderRef == "PDxK3mN09vR2qL7y26wPz")).Status);
+    }
+
     [Theory]
     [InlineData("not json")]
     [InlineData("[]")]

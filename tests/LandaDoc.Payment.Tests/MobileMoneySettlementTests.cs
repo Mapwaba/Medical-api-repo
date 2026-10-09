@@ -57,6 +57,19 @@ public class MobileMoneySettlementTests
         await _bus.Received(1).Publish(Arg.Is<PaymentCompletedEvent>(e => e.AppointmentId == payment.AppointmentId), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData("Successful")]   // the developer portal and sandbox
+    [InlineData("Success")]      // the PayDRC PDF
+    public async Task Both_spellings_of_success_confirm_the_booking(string transStatus)
+    {
+        var (_, attempt) = PendingPrompt();
+
+        var outcome = await Settlement.ApplyAsync(attempt.Reference, "PD123", transStatus, null, "test");
+
+        Assert.Equal(SettlementOutcome.Recorded, outcome);
+        Assert.Equal(PaymentStatus.Completed, (await _db.Payments.SingleAsync(p => p.ProviderRef == "PD123")).Status);
+    }
+
     [Fact]
     public async Task Failure_adds_a_failed_row_with_the_operators_reason()
     {

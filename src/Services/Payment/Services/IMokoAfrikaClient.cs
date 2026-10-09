@@ -29,10 +29,14 @@ public interface IMokoAfrikaClient
     string Decrypt(string encryptedData);
 }
 
-// FreshPay's final transaction statuses (Trans_Status); anything else is still in progress
+// FreshPay's final transaction statuses (Trans_Status); anything else ("Pending") is still in
+// progress. The Moko Afrika developer portal and sandbox say "Successful"; the older PayDRC PDF
+// said "Success". Both mean paid.
 public static class MokoStatus
 {
-    public static bool IsSuccess(string? transStatus) => string.Equals(transStatus, "Success", StringComparison.OrdinalIgnoreCase);
+    public static bool IsSuccess(string? transStatus) =>
+        string.Equals(transStatus, "Successful", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(transStatus, "Success", StringComparison.OrdinalIgnoreCase);
     public static bool IsFailure(string? transStatus) => string.Equals(transStatus, "Failed", StringComparison.OrdinalIgnoreCase);
     public static bool IsFinal(string? transStatus) => IsSuccess(transStatus) || IsFailure(transStatus);
 }

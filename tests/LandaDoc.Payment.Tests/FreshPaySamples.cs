@@ -89,6 +89,41 @@ public static class FreshPaySamples
         }
         """;
 
+    // Moko Afrika developer portal (sandbox.gofreshpay.com): the callback payload of a paid debit.
+    // Note "Successful", where the PDF says "Success".
+    public const string PortalPaidCallback = """
+        {
+            "Status": "Success",
+            "Comment": "Transaction Found",
+            "Trans_Status": "Successful",
+            "Currency": "CDF",
+            "Amount": 5000.0,
+            "Method": "mpesa",
+            "Customer_Details": "243970000000",
+            "Reference": "order_001",
+            "PayDRC_Reference": "PDxK3mN09vR2qL7y26wPz",
+            "Action": "debit",
+            "Status_Description": "Transaction successful",
+            "Trans_Status_Description": "Paiement recu avec succes",
+            "Financial_Institution_id": "MP260405.1234.A56789"
+        }
+        """;
+
+    // The portal's sandbox "Pending → Success" numbers answer the request with a pending
+    // acknowledgement (shape assumed from the portal's other replies)
+    public const string RequestPending = """
+        {
+          "Status": "Pending",
+          "Comment": "Transaction Received Successfully",
+          "Reference": "test_001",
+          "Customer_Number": "243810000003",
+          "Transaction_id": "PDxK3mN09vR2qL7y26wPz"
+        }
+        """;
+
+    // What the sandbox gateway itself answered to an empty request (HTTP 400)
+    public const string RequestMalformed = """{"detail":"merchant_id is required"}""";
+
     // 9: "Transaction Identifier Not Recognized", in the shape of 6.5
     public const string VerifyNotFound = """
         {

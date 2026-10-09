@@ -96,6 +96,65 @@ public class MokoAfrikaClientTests
     }
 
     [Fact]
+    public async Task A_pending_acknowledgement_is_not_a_refusal()
+    {
+        var result = await Client(new CannedHandler(HttpStatusCode.OK, FreshPaySamples.RequestPending))
+            .InitiateDebitAsync("test_001", 10m, "0810000003", MobileMoneyOperator.Mpesa, "A", "B", "a@b.c", "https://cb");
+
+        Assert.True(result.Success);
+        Assert.Equal("PDxK3mN09vR2qL7y26wPz", result.TransactionId);
+    }
+
+    [Fact]
+    public async Task A_malformed_request_is_refused_with_the_gateways_reason()
+    {
+        var result = await Client(new CannedHandler(HttpStatusCode.BadRequest, FreshPaySamples.RequestMalformed))
+            .InitiateDebitAsync("test_001", 10m, "0810000001", MobileMoneyOperator.Mpesa, "A", "B", "a@b.c", "https://cb");
+
+        Assert.False(result.Success);
+        Assert.Equal("merchant_id is required", result.Comment);
+    }
+
+    [Fact]
+    public async Task A_reply_that_isnt_json_is_a_refusal()
+    {
+        var result = await Client(new CannedHandler(HttpStatusCode.BadGateway, "<html>Bad gateway</html>"))
+            .InitiateDebitAsync("test_001", 10m, "0810000001", MobileMoneyOperator.Mpesa, "A", "B", "a@b.c", "https://cb");
+
+        Assert.False(result.Success);
+        Assert.Equal("FreshPay answered HTTP 502", result.Comment);
+    }
+
+    [Fact]
+    public async Task Verify_understands_the_portals_Successful()
+    {
+        var result = await Client(new CannedHandler(HttpStatusCode.OK, FreshPaySamples.PortalPaidCallback)).VerifyAsync("order_001");
+
+        Assert.True(result.Found);
+        Assert.Equal("Successful", result.TransStatus);
+        Assert.True(result.IsFinal);
+        Assert.True(MokoStatus.IsSuccess(result.TransStatus));
+    }
+
+    // The portal's scheme: HMAC-SHA256 (hex) of the base64 "data", and AES-128-CBC with IV = key
+    [Fact]
+    public void Signed_callbacks_are_checked_and_decrypted_the_way_the_portal_describes()
+    {
+        const string aesKey = "0123456789abcdef", hmacKey = "fedcba9876543210";   // made up, 16 bytes each
+        var client = new MokoAfrikaClient(new HttpClient(), Options.Create(new MokoAfrikaOptions { AesKey = aesKey, HmacKey = hmacKey }));
+
+        using var aes = System.Security.Cryptography.Aes.Create();
+        aes.Key = aes.IV = Encoding.UTF8.GetBytes(aesKey);
+        var plain = Encoding.UTF8.GetBytes(FreshPaySamples.PortalPaidCallback);
+        var data = Convert.ToBase64String(aes.EncryptCbc(plain, aes.IV));
+        var signature = Convert.ToHexString(System.Security.Cryptography.HMACSHA256.HashData(Encoding.UTF8.GetBytes(hmacKey), Encoding.UTF8.GetBytes(data))).ToLowerInvariant();
+
+        Assert.True(client.VerifySignature(data, signature));
+        Assert.False(client.VerifySignature(data, signature.Replace(signature[0], signature[0] == 'a' ? 'b' : 'a')));
+        Assert.Equal("Successful", MokoCallback.From(JsonSerializer.Deserialize<JsonElement>(client.Decrypt(data))).TransStatus);
+    }
+
+    [Fact]
     public async Task Verify_reads_the_real_outcome_from_Trans_Status()
     {
         var handler = new CannedHandler(HttpStatusCode.OK, FreshPaySamples.VerifyFound);
