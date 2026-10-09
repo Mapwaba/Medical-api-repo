@@ -28,7 +28,8 @@ public class DoctorPatientsController(IdentityDbContext db, IAppointmentPatients
                 .Where(u => patientIds.Contains(u.Id) && u.Role == UserRole.Patient)
                 .ToListAsync())
             .Select(u => new PatientContactDto(
-                u.Id, u.FirstName ?? "", u.LastName ?? "", u.Email, u.Phone, u.DateOfBirth, u.Gender?.ToString()));
+                u.Id, u.FirstName ?? "", u.LastName ?? "", u.Email, u.Phone, u.DateOfBirth, u.Gender?.ToString(),
+                PhotoDataUrl: u.AvatarUrl));
         var dependents = (await db.Dependents
                 .Where(d => patientIds.Contains(d.Id))
                 .Join(db.Users, d => d.GuardianUserId, g => g.Id, (d, g) => new { Dependent = d, Guardian = g })

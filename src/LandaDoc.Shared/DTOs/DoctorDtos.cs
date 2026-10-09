@@ -11,7 +11,9 @@ public record CreateDoctorProfileRequest(
     string? Bio,
     string? LicenseNumber,
     List<Guid> ClinicIds,
-    [Range(0, 100000)] decimal ConsultationFee
+    [Range(0, 100000)] decimal ConsultationFee,
+    // Profile picture (ProfilePhoto); an admin may create a profile without one
+    [StringLength(ProfilePhoto.MaxLength)] string? PhotoDataUrl = null
 );
 
 public record DoctorProfileDto(
@@ -20,7 +22,8 @@ public record DoctorProfileDto(
     decimal ConsultationFee,
     List<ClinicDto> Clinics,
     DoctorApprovalStatus Status,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    string? PhotoDataUrl = null
 );
 
 public record SuspendDoctorRequest(string? Reason);
@@ -30,7 +33,8 @@ public record DoctorSearchResultDto(
     string FirstName, string LastName, string Specialty, string? Bio,
     decimal ConsultationFee,
     List<ClinicDto> Clinics,
-    double AverageRating, int RatingCount
+    double AverageRating, int RatingCount,
+    string? PhotoDataUrl = null
 );
 
 public record CreateOwnDoctorProfileRequest(
@@ -40,7 +44,10 @@ public record CreateOwnDoctorProfileRequest(
     string? Bio,
     string? LicenseNumber,
     List<Guid> ClinicIds,
-    [Range(0, 100000)] decimal ConsultationFee
+    [Range(0, 100000)] decimal ConsultationFee,
+    // Required (ProfilePhoto): the server refuses a missing one with code "photo_required". Has a
+    // default only so a caller without it gets that clear answer rather than a binding error.
+    [StringLength(ProfilePhoto.MaxLength)] string? PhotoDataUrl = null
 );
 
 // null fields are left unchanged. The trailing ones have defaults so older callers still compile.
@@ -51,5 +58,6 @@ public record UpdateOwnDoctorProfileRequest(
     [StringLength(100, MinimumLength = 1)] string? FirstName = null,
     [StringLength(100, MinimumLength = 1)] string? LastName = null,
     [StringLength(100, MinimumLength = 1)] string? Specialty = null,
-    [StringLength(100)] string? LicenseNumber = null
+    [StringLength(100)] string? LicenseNumber = null,
+    [StringLength(ProfilePhoto.MaxLength)] string? PhotoDataUrl = null
 );

@@ -71,6 +71,7 @@ public class AuthService(
             City = Clean(req.City),
             PostalCode = Clean(req.PostalCode),
             IdNumber = Clean(req.IdNumber),
+            AvatarUrl = req.PhotoDataUrl, // the controller checked it's a ProfilePhoto
             IsActive = true,
             IsApproved = true // patients are auto-approved; doctors require admin approval
         };
@@ -143,7 +144,8 @@ public class AuthService(
         var query = db.Users.AsQueryable();
         if (role is not null) query = query.Where(u => u.Role == role);
         var users = await query.OrderBy(u => u.LastName).ToListAsync();
-        return users.Select(MapToDto).ToList();
+        // Without photos: the Admin app's lists don't show them, and they'd make the list heavy
+        return users.Select(u => MapToDto(u) with { AvatarUrl = null }).ToList();
     }
 
     public async Task<UserCountsDto> GetUserCountsAsync()
@@ -186,6 +188,18 @@ public class AuthService(
         user.City = Clean(req.City);
         user.PostalCode = Clean(req.PostalCode);
         user.IdNumber = Clean(req.IdNumber);
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return MapToDto(user);
+    }
+
+    // null removes the photo; callers check a new one is a ProfilePhoto first
+    public async Task<UserDto?> UpdatePhotoAsync(Guid userId, string? photoDataUrl)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return null;
+
+        user.AvatarUrl = photoDataUrl;
         user.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return MapToDto(user);

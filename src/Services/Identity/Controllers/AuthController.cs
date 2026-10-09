@@ -18,6 +18,7 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         if (req.Country is not null && !Locations.IsCountry(req.Country)) return UnknownCountry();
+        if (req.PhotoDataUrl is not null && !ProfilePhoto.IsValid(req.PhotoDataUrl)) return BadPhoto();
         var result = await auth.RegisterPatientAsync(req);
         if (result.Status == AuthResultStatus.Success)
             log.LogInformation("Patient account {UserId} registered", result.Response!.User.Id);
@@ -91,6 +92,23 @@ public class AuthController(IAuthService auth, ILogger<AuthController> log) : Co
         if (user is not null) log.LogInformation("User {UserId} updated their address (country {Country})", userId, user.Country);
         return user is null ? NotFound() : Ok(user);
     }
+
+    // A patient's optional profile picture (null removes it), shown to their doctors. A doctor's
+    // photo lives on their doctor profile (Admin service), where patients see it.
+    [HttpPut("me/photo")]
+    [Authorize(Roles = "Patient")]
+    public async Task<IActionResult> UpdatePhoto([FromBody] UpdatePhotoRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (req.PhotoDataUrl is not null && !ProfilePhoto.IsValid(req.PhotoDataUrl)) return BadPhoto();
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var user = await auth.UpdatePhotoAsync(userId, req.PhotoDataUrl);
+        if (user is not null) log.LogInformation("User {UserId} {Action} their profile photo", userId, req.PhotoDataUrl is null ? "removed" : "changed");
+        return user is null ? NotFound() : Ok(user);
+    }
+
+    private BadRequestObjectResult BadPhoto() =>
+        BadRequest(new { error = "The photo must be a JPEG, PNG or WebP image of 200 KB at most", code = "photo_invalid" });
 
     // 422 (not 400, which the apps read as "wrong current password") with the broken rules by name
     private UnprocessableEntityObjectResult WeakPassword(AuthResult result) => UnprocessableEntity(new

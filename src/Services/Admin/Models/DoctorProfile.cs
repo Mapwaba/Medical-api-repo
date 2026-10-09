@@ -12,6 +12,7 @@ public class DoctorProfile
     public string? Bio { get; set; }
     public string? LicenseNumber { get; set; }
     public decimal ConsultationFee { get; set; }
+    public string? PhotoDataUrl { get; set; } // profile picture, stored inline as a data: URL (ProfilePhoto)
     public DoctorApprovalStatus Status { get; set; } = DoctorApprovalStatus.Pending;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

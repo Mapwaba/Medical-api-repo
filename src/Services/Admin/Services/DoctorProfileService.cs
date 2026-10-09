@@ -42,6 +42,7 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
             Bio = req.Bio,
             LicenseNumber = req.LicenseNumber,
             ConsultationFee = req.ConsultationFee,
+            PhotoDataUrl = req.PhotoDataUrl,
             Clinics = clinics,
             // Admin-created profiles are already vetted by the admin creating them, and
             // self-service ones wait for review unless Doctors:RequireApproval is false.
@@ -81,6 +82,7 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
             profile.Clinics = clinics;
         }
         if (req.ConsultationFee is not null) profile.ConsultationFee = req.ConsultationFee.Value;
+        if (req.PhotoDataUrl is not null) profile.PhotoDataUrl = req.PhotoDataUrl;
         profile.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
@@ -143,7 +145,8 @@ public class DoctorProfileService(AdminDbContext db, IPublishEndpoint bus) : IDo
             ConsultationFee: profile.ConsultationFee,
             Clinics: profile.Clinics.Select(c => new ClinicDto(
                 c.Id, c.Name, c.Type, c.Address, c.City, c.Phone, c.CreatedAt)).ToList(),
-            OccurredAt: DateTime.UtcNow
+            OccurredAt: DateTime.UtcNow,
+            PhotoDataUrl: profile.PhotoDataUrl
         ));
 
     public async Task<DoctorProfileResult> SuspendAsync(Guid id, SuspendDoctorRequest req)

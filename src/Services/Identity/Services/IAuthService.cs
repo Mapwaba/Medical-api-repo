@@ -31,6 +31,7 @@ public interface IAuthService
     Task<UserDto?> GetMeAsync(Guid userId);
     Task<UpdateMeResult> UpdateMeAsync(Guid userId, UpdateMeRequest req);
     Task<UserDto?> UpdateAddressAsync(Guid userId, UpdateAddressRequest req);
+    Task<UserDto?> UpdatePhotoAsync(Guid userId, string? photoDataUrl);
     // InvalidCredentials when the current password is wrong; on success, fresh tokens for this session
     Task<AuthResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest req);
     Task<List<UserDto>> GetUsersAsync(UserRole? role);

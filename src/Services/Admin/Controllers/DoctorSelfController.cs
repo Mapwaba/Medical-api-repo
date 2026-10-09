@@ -23,11 +23,14 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
     public async Task<IActionResult> Create([FromBody] CreateOwnDoctorProfileRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        // Patients choose their doctor partly by face: a doctor can't set up a profile without a photo
+        if (req.PhotoDataUrl is null) return BadRequest(PhotoRequired());
+        if (AdminDoctorsController.BadPhoto(req.PhotoDataUrl)) return BadRequest(AdminDoctorsController.PhotoError());
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
         var fullReq = new CreateDoctorProfileRequest(
             callerId, req.FirstName, req.LastName, req.Specialty,
-            req.Bio, req.LicenseNumber, req.ClinicIds, req.ConsultationFee);
+            req.Bio, req.LicenseNumber, req.ClinicIds, req.ConsultationFee, req.PhotoDataUrl);
 
         // Self-registered doctors wait as Pending until an admin approves them on the
         // Admin Doctors page. Doctors__RequireApproval=false makes them go live straight away.
@@ -48,9 +51,15 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
     [HttpPut]
     public async Task<IActionResult> Update([FromBody] UpdateOwnDoctorProfileRequest req)
     {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (AdminDoctorsController.BadPhoto(req.PhotoDataUrl)) return BadRequest(AdminDoctorsController.PhotoError());
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var existing = await doctors.GetByUserIdAsync(callerId);
         var before = existing is null ? null : AdminDoctorsController.MapToDto(existing);   // snapshot before the edit
+
+        // A doctor from before photos were required adds one the next time they save their profile
+        if (existing is not null && existing.PhotoDataUrl is null && req.PhotoDataUrl is null)
+            return BadRequest(PhotoRequired());
 
         var result = await doctors.UpdateOwnAsync(callerId, req);
         if (result.Status == DoctorProfileResultStatus.Success && before is not null)
@@ -64,4 +73,6 @@ public class DoctorSelfController(IDoctorProfileService doctors, IConfiguration 
             _ => Problem()
         };
     }
+
+    private static object PhotoRequired() => new { error = "Add a photo of yourself to your profile", code = "photo_required" };
 }

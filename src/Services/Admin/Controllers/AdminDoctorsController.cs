@@ -27,6 +27,7 @@ public class AdminDoctorsController(IDoctorProfileService doctors, ILogger<Admin
     public async Task<IActionResult> Create([FromBody] CreateDoctorProfileRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (BadPhoto(req.PhotoDataUrl)) return BadRequest(PhotoError());
         var result = await doctors.CreateAsync(req, autoApprove: true);
         if (result.Status == DoctorProfileResultStatus.Success)
             log.LogInformation("Doctor profile {DoctorProfileId} created and approved by admin {AdminId} for account {UserId}",
@@ -48,6 +49,7 @@ public class AdminDoctorsController(IDoctorProfileService doctors, ILogger<Admin
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateOwnDoctorProfileRequest req)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (BadPhoto(req.PhotoDataUrl)) return BadRequest(PhotoError());
         var profile = await doctors.GetByIdAsync(id);
         if (profile is null) return NotFound();
         var before = MapToDto(profile);   // snapshot: the service updates this same tracked object
@@ -110,12 +112,18 @@ public class AdminDoctorsController(IDoctorProfileService doctors, ILogger<Admin
         if (before.ConsultationFee != after.ConsultationFee) changed.Add("ConsultationFee");
         if (!before.Clinics.Select(c => c.Id).OrderBy(x => x).SequenceEqual(after.Clinics.Select(c => c.Id).OrderBy(x => x)))
             changed.Add("Clinics");
+        if (before.PhotoDataUrl != after.PhotoDataUrl) changed.Add("Photo");
         return changed;
     }
+
+    // A photo sent with a profile must be a small inline image (ProfilePhoto); null means none sent
+    internal static bool BadPhoto(string? photoDataUrl) => photoDataUrl is not null && !ProfilePhoto.IsValid(photoDataUrl);
+
+    internal static object PhotoError() => new { error = "The photo must be a JPEG, PNG or WebP image of 200 KB at most", code = "photo_invalid" };
 
     internal static DoctorProfileDto MapToDto(Models.DoctorProfile d) => new(
         d.Id, d.UserId, d.FirstName, d.LastName, d.Specialty, d.Bio, d.LicenseNumber,
         d.ConsultationFee,
         d.Clinics.Select(c => new ClinicDto(c.Id, c.Name, c.Type, c.Address, c.City, c.Phone, c.CreatedAt)).ToList(),
-        d.Status, d.CreatedAt);
+        d.Status, d.CreatedAt, d.PhotoDataUrl);
 }

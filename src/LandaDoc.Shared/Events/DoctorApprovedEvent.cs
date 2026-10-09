@@ -14,5 +14,6 @@ public record DoctorApprovedEvent(
     string? Bio,
     decimal ConsultationFee,
     List<ClinicDto> Clinics,
-    DateTime OccurredAt
+    DateTime OccurredAt,
+    string? PhotoDataUrl = null
 );

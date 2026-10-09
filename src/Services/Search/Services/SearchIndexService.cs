@@ -45,6 +45,7 @@ public class SearchIndexService(IConnectionMultiplexer redis) : ISearchIndexServ
             new HashEntry("bio", evt.Bio ?? ""),
             new HashEntry("consultation_fee", evt.ConsultationFee.ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new HashEntry("clinics", JsonSerializer.Serialize(evt.Clinics)),
+            new HashEntry("photo", evt.PhotoDataUrl ?? ""),
         ]);
 
         await db.SetAddAsync(AllKey, id);
@@ -167,7 +168,8 @@ public class SearchIndexService(IConnectionMultiplexer redis) : ISearchIndexServ
             consultationFee,
             ParseClinics(map.GetValueOrDefault("clinics")),
             ratingCount > 0 ? ratingSum / ratingCount : 0,
-            ratingCount
+            ratingCount,
+            string.IsNullOrEmpty(map.GetValueOrDefault("photo")) ? null : map["photo"]
         );
     }
 

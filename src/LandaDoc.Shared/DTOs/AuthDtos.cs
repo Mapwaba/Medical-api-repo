@@ -19,7 +19,9 @@ string? Gender,
 [StringLength(100)] string? Province = null,
 [StringLength(100)] string? City = null,
 [StringLength(20)] string? PostalCode = null,
-[StringLength(50)] string? IdNumber = null
+[StringLength(50)] string? IdNumber = null,
+// Optional profile picture (ProfilePhoto), kept as the account's AvatarUrl
+[StringLength(LandaDoc.Shared.Models.ProfilePhoto.MaxLength)] string? PhotoDataUrl = null
 );
 
 public record RegisterDoctorRequest(
@@ -57,7 +59,9 @@ public record PatientContactDto(
     Guid Id, string FirstName, string LastName, string Email, string? Phone,
     DateOnly? DateOfBirth, string? Gender,
     // Set for a dependant (a child without an account): Email and Phone are then the guardian's
-    string? GuardianName = null
+    string? GuardianName = null,
+    // The patient's profile picture, if they added one (dependants have none)
+    string? PhotoDataUrl = null
 );
 
 // A signed-in user editing their own account (name and phone; email stays the login)
@@ -69,6 +73,10 @@ public record UpdateMeRequest(
     [Required, StringLength(100)] string LastName,
     [StringLength(30)] string? Phone
 );
+
+// A patient sets, or with null removes, their profile picture (ProfilePhoto). Doctors keep
+// theirs on the doctor profile instead.
+public record UpdatePhotoRequest([StringLength(LandaDoc.Shared.Models.ProfilePhoto.MaxLength)] string? PhotoDataUrl);
 
 // Where someone lives, and (patients) their ID card / passport number. Country is an ISO code.
 public record UpdateAddressRequest(

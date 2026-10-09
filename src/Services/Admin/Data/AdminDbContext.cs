@@ -43,6 +43,7 @@ public class AdminDbContext(DbContextOptions<AdminDbContext> options) : DbContex
             e.Property(x => x.Bio).HasColumnName("bio");
             e.Property(x => x.LicenseNumber).HasColumnName("license_number");
             e.Property(x => x.ConsultationFee).HasColumnName("consultation_fee").HasPrecision(10, 2);
+            e.Property(x => x.PhotoDataUrl).HasColumnName("photo_data_url");
             e.Property(x => x.Status).HasColumnName("status").HasConversion<string>();
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
