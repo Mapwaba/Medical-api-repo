@@ -39,7 +39,16 @@ public class MokoAfrikaClient(HttpClient http, IOptions<MokoAfrikaOptions> optio
             ["callback_url"] = callbackUrl
         };
 
-        var response = await http.PostAsJsonAsync("", payload);
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.PostAsJsonAsync("", payload);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return new MokoDebitResult(false, null, $"FreshPay couldn't be reached ({ex.GetBaseException().Message})");
+        }
+
         JsonElement body;
         try
         {

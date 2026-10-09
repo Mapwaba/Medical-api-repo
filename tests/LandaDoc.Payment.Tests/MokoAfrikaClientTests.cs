@@ -126,6 +126,16 @@ public class MokoAfrikaClientTests
     }
 
     [Fact]
+    public async Task An_unreachable_FreshPay_is_a_refusal_that_says_so()
+    {
+        var result = await Client(new FailingHandler())
+            .InitiateDebitAsync("test_001", 10m, "0810000001", MobileMoneyOperator.Mpesa, "A", "B", "a@b.c", "https://cb");
+
+        Assert.False(result.Success);
+        Assert.Equal("FreshPay couldn't be reached (FreshPay unreachable)", result.Comment);
+    }
+
+    [Fact]
     public async Task Verify_understands_the_portals_Successful()
     {
         var result = await Client(new CannedHandler(HttpStatusCode.OK, FreshPaySamples.PortalPaidCallback)).VerifyAsync("order_001");
