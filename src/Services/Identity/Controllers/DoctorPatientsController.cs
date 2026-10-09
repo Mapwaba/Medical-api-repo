@@ -9,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace LandaDoc.Identity.Controllers;
 
 // Contact details of the patients a doctor has had a (non-cancelled) appointment with — and no one
-// else's. Used by the Doctor app's Patients page and patient file.
+// else's. Used by the Doctor app's Patients page and patient file. A dependant (a child booked by a
+// guardian) has no account, so they come with the guardian's email and phone and GuardianName.
 [ApiController]
 [Route("api/patients/mine")]
 [Authorize(Roles = "Doctor")]
@@ -23,13 +24,21 @@ public class DoctorPatientsController(IdentityDbContext db, IAppointmentPatients
         if (patientIds is null)
             return Problem("Couldn't load your patients right now. Please try again.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-        var patients = await db.Users
-            .Where(u => patientIds.Contains(u.Id) && u.Role == UserRole.Patient)
-            .OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
-            .ToListAsync();
+        var accounts = (await db.Users
+                .Where(u => patientIds.Contains(u.Id) && u.Role == UserRole.Patient)
+                .ToListAsync())
+            .Select(u => new PatientContactDto(
+                u.Id, u.FirstName ?? "", u.LastName ?? "", u.Email, u.Phone, u.DateOfBirth, u.Gender?.ToString()));
+        var dependents = (await db.Dependents
+                .Where(d => patientIds.Contains(d.Id))
+                .Join(db.Users, d => d.GuardianUserId, g => g.Id, (d, g) => new { Dependent = d, Guardian = g })
+                .ToListAsync())
+            .Select(x => new PatientContactDto(
+                x.Dependent.Id, x.Dependent.FirstName, x.Dependent.LastName, x.Guardian.Email, x.Guardian.Phone,
+                x.Dependent.DateOfBirth, x.Dependent.Gender?.ToString(),
+                $"{x.Guardian.FirstName} {x.Guardian.LastName}".Trim()));
 
-        return Ok(patients.Select(u => new PatientContactDto(
-            u.Id, u.FirstName, u.LastName, u.Email, u.Phone, u.DateOfBirth, u.Gender?.ToString())));
+        return Ok(accounts.Concat(dependents).OrderBy(p => p.LastName).ThenBy(p => p.FirstName));
     }
 
     // Just the names of everyone on the doctor's appointments, for the agenda, dashboard and

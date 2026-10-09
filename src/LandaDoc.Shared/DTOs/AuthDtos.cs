@@ -55,7 +55,9 @@ public record PatientNameDto(Guid Id, string FirstName, string LastName);
 
 public record PatientContactDto(
     Guid Id, string FirstName, string LastName, string Email, string? Phone,
-    DateOnly? DateOfBirth, string? Gender
+    DateOnly? DateOfBirth, string? Gender,
+    // Set for a dependant (a child without an account): Email and Phone are then the guardian's
+    string? GuardianName = null
 );
 
 // A signed-in user editing their own account (name and phone; email stays the login)

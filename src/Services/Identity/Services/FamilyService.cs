@@ -15,7 +15,9 @@ public class FamilyService(IdentityDbContext db, IPublishEndpoint bus) : IFamily
         if (!Enum.TryParse<FamilyRelationType>(req.RelationType, true, out var relationType))
             return new InviteFamilyResult(InviteFamilyResultStatus.InvalidRelationType);
 
-        var recipient = await db.Users.FirstOrDefaultAsync(u => u.Email == req.RecipientEmail);
+        // Same matching as login and registration: "Paul@Mail.cd" finds paul@mail.cd
+        var email = AccountUniqueness.NormalizeEmail(req.RecipientEmail);
+        var recipient = await db.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
         if (recipient is null)
             return new InviteFamilyResult(InviteFamilyResultStatus.RecipientNotFound);
         if (recipient.Id == requesterId)
