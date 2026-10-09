@@ -8,6 +8,9 @@ public class Payment
     public Guid AppointmentId { get; set; }
     public Guid DoctorId { get; set; }
     public Guid PatientId { get; set; }
+    // The family member who booked for the patient (null when the patient booked it themselves).
+    // Set on the Pending row opened at booking; they may see and pay for it like the patient.
+    public Guid? BookedByUserId { get; set; }
     public decimal GrossAmount { get; set; }
     public decimal PlatformFee { get; set; }
     public decimal NetAmount { get; set; }

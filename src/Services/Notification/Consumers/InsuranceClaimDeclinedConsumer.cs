@@ -21,16 +21,21 @@ public class InsuranceClaimDeclinedConsumer(
                 ? "Le médecin n'a pas accepté votre assurance pour ce rendez-vous. Veuillez payer par carte ou Mobile Money pour le confirmer."
                 : $"Le médecin n'a pas accepté votre assurance pour ce rendez-vous ({msg.Reason}). Veuillez payer par carte ou Mobile Money pour le confirmer.";
 
-        await publisher.PublishAsync(msg.PatientId, "insurance_claim_declined", "Prise en charge refusée", body);
+        var patientSide = await PatientSide.RecipientsAsync(db, msg.AppointmentId, msg.PatientId);
+        foreach (var r in patientSide)
+            await publisher.PublishAsync(r.UserId, "insurance_claim_declined", "Prise en charge refusée", r.Text(body));
 
         // Let the doctor know the claim they left waiting has been closed
         if (msg.TimedOut)
             await publisher.PublishAsync(msg.DoctorId, "insurance_claim_expired", "Prise en charge expirée",
                 "Une demande de prise en charge a été refusée automatiquement faute de réponse. Le patient a été invité à payer autrement.");
 
-        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
-        if (contact is null) return;
-
-        await email.SendAsync(contact.Email, "Prise en charge refusée", $"Bonjour {contact.FirstName}, {char.ToLower(body[0])}{body[1..]}");
+        foreach (var r in patientSide)
+        {
+            var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == r.UserId);
+            if (contact is null) continue;
+            var text = r.Text(body);
+            await email.SendAsync(contact.Email, "Prise en charge refusée", $"Bonjour {contact.FirstName}, {char.ToLower(text[0])}{text[1..]}");
+        }
     }
 }

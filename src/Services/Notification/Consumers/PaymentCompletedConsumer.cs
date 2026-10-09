@@ -28,44 +28,50 @@ public class PaymentCompletedConsumer(
         projection.Status = AppointmentStatus.Confirmed;
         await db.SaveChangesAsync();
 
-        await publisher.PushPendingCountAsync(msg.PatientId);
+        var patientSide = await PatientSide.RecipientsAsync(db, msg.AppointmentId, msg.PatientId);
+        foreach (var r in patientSide) await publisher.PushPendingCountAsync(r.UserId);
         await publisher.PushPendingCountAsync(msg.DoctorId);
 
         // Insurance: nothing was charged, so send "cover accepted" instead of a payment receipt
         if (msg.Provider == PaymentProvider.Insurance)
         {
-            await NotifyClaimApprovedAsync(msg);
+            foreach (var r in patientSide) await NotifyClaimApprovedAsync(r);
             return;
         }
 
-        await publisher.PublishAsync(msg.PatientId, "payment_completed", "Paiement reçu",
-            "Votre paiement a été reçu et votre rendez-vous est confirmé.");
         await publisher.PublishAsync(msg.DoctorId, "payment_completed", "Paiement reçu",
             "Le paiement d'un rendez-vous a été reçu — le rendez-vous est confirmé.");
+        foreach (var r in patientSide)
+        {
+            await publisher.PublishAsync(r.UserId, "payment_completed", "Paiement reçu",
+                r.Text("Votre paiement a été reçu et votre rendez-vous est confirmé."));
 
-        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
-        if (contact is null) return;
+            var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == r.UserId);
+            if (contact is null) continue;
 
-        await email.SendAsync(contact.Email, "Paiement reçu",
-            $"Bonjour {contact.FirstName}, votre paiement pour le rendez-vous du {msg.OccurredAt:dd/MM/yyyy} a bien été reçu. Votre rendez-vous est confirmé.");
+            await email.SendAsync(contact.Email, "Paiement reçu",
+                $"Bonjour {contact.FirstName}, " + Lower(r.Text($"Votre paiement pour le rendez-vous du {msg.OccurredAt:dd/MM/yyyy} a bien été reçu. Votre rendez-vous est confirmé.")));
 
-        if (!string.IsNullOrWhiteSpace(contact.Phone))
-            await sms.SendAsync(contact.Phone, "LandaDoc: paiement reçu, votre rendez-vous est confirmé.");
+            if (!string.IsNullOrWhiteSpace(contact.Phone))
+                await sms.SendAsync(contact.Phone, "LandaDoc: " + Lower(r.Text("Paiement reçu, votre rendez-vous est confirmé.")));
+        }
     }
 
     // The doctor accepted the patient's insurance: nothing was paid, so no receipt wording
-    private async Task NotifyClaimApprovedAsync(PaymentCompletedEvent msg)
+    private async Task NotifyClaimApprovedAsync(PatientSide.Recipient r)
     {
-        await publisher.PublishAsync(msg.PatientId, "insurance_claim_approved", "Prise en charge acceptée",
-            "Le médecin a accepté votre assurance. Votre rendez-vous est confirmé.");
+        await publisher.PublishAsync(r.UserId, "insurance_claim_approved", "Prise en charge acceptée",
+            r.Text("Le médecin a accepté votre assurance. Votre rendez-vous est confirmé."));
 
-        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
+        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == r.UserId);
         if (contact is null) return;
 
         await email.SendAsync(contact.Email, "Prise en charge acceptée",
-            $"Bonjour {contact.FirstName}, le médecin a accepté la prise en charge par votre assurance. Votre rendez-vous est confirmé.");
+            $"Bonjour {contact.FirstName}, " + Lower(r.Text("Le médecin a accepté la prise en charge par votre assurance. Votre rendez-vous est confirmé.")));
 
         if (!string.IsNullOrWhiteSpace(contact.Phone))
-            await sms.SendAsync(contact.Phone, "LandaDoc: prise en charge acceptée, votre rendez-vous est confirmé.");
+            await sms.SendAsync(contact.Phone, "LandaDoc: " + Lower(r.Text("Prise en charge acceptée, votre rendez-vous est confirmé.")));
     }
+
+    private static string Lower(string s) => char.ToLower(s[0]) + s[1..];
 }

@@ -33,39 +33,47 @@ public class BookingCreatedConsumer(
             AppointmentId = msg.AppointmentId,
             PatientId = msg.PatientId,
             DoctorId = msg.DoctorId,
-            Status = AppointmentStatus.Pending
+            Status = AppointmentStatus.Pending,
+            BookedByUserId = msg.BookedByUserId == Guid.Empty || msg.BookedByUserId == msg.PatientId ? null : msg.BookedByUserId,
+            PatientName = string.IsNullOrWhiteSpace(msg.PatientName) ? null : msg.PatientName,
         });
         await db.SaveChangesAsync();
 
         var doctor = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.DoctorId);
         var doctorName = doctor is null ? "votre médecin" : $"{doctor.FirstName} {doctor.LastName}".Trim();
         var patient = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
-        var patientName = patient is null ? "Un patient" : $"{patient.FirstName} {patient.LastName}".Trim();
+        // A dependant has no account (no contact), but the booking carries their name
+        var patientName = patient is not null ? $"{patient.FirstName} {patient.LastName}".Trim()
+            : string.IsNullOrWhiteSpace(msg.PatientName) ? "Un patient" : msg.PatientName;
+        var patientSide = await PatientSide.RecipientsAsync(db, msg.AppointmentId, msg.PatientId);
 
         // 1. In-app "pending" notification for both sides of the booking, pushed live over SignalR
-        await publisher.PublishAsync(msg.PatientId, NotificationType, "Rendez-vous en attente",
-            $"Votre RDV avec {doctorName} le {msg.SlotStart:dd/MM/yyyy HH:mm} est en attente.",
-            JsonSerializer.Serialize(new { msg.AppointmentId }));
+        foreach (var r in patientSide)
+            await publisher.PublishAsync(r.UserId, NotificationType, "Rendez-vous en attente",
+                r.Text($"Votre RDV avec {doctorName} le {msg.SlotStart:dd/MM/yyyy HH:mm} est en attente."),
+                JsonSerializer.Serialize(new { msg.AppointmentId }));
         await publisher.PublishAsync(msg.DoctorId, NotificationType, "Nouvelle demande de rendez-vous",
             $"{patientName} a demandé un RDV le {msg.SlotStart:dd/MM/yyyy HH:mm}.",
             JsonSerializer.Serialize(new { msg.AppointmentId }));
 
         // 2. Live pending-count badge for both sides of the booking
-        await publisher.PushPendingCountAsync(msg.PatientId);
+        foreach (var r in patientSide) await publisher.PushPendingCountAsync(r.UserId);
         await publisher.PushPendingCountAsync(msg.DoctorId);
 
         // 3. Reminders stay in-app only — SMS/Email are reserved for the payment flow
         var remind24h = msg.SlotStart.AddHours(-24);
         var remind1h = msg.SlotStart.AddHours(-1);
-        if (remind24h > DateTime.UtcNow)
-            hangfire.Schedule<INotificationPublisher>(p => p.PublishAsync(
-                msg.PatientId, ReminderType, "Rappel de rendez-vous",
-                $"Rappel: RDV demain à {msg.SlotStart:HH:mm} avec {doctorName}.", null),
-                remind24h);
-        if (remind1h > DateTime.UtcNow)
-            hangfire.Schedule<INotificationPublisher>(p => p.PublishAsync(
-                msg.PatientId, ReminderType, "Rappel de rendez-vous",
-                $"Rappel: RDV dans 1h à {msg.SlotStart:HH:mm} avec {doctorName}.", null),
-                remind1h);
+        foreach (var r in patientSide)
+        {
+            var userId = r.UserId;
+            var dayBefore = r.Text($"Rappel: RDV demain à {msg.SlotStart:HH:mm} avec {doctorName}.");
+            var hourBefore = r.Text($"Rappel: RDV dans 1h à {msg.SlotStart:HH:mm} avec {doctorName}.");
+            if (remind24h > DateTime.UtcNow)
+                hangfire.Schedule<INotificationPublisher>(p => p.PublishAsync(
+                    userId, ReminderType, "Rappel de rendez-vous", dayBefore, null), remind24h);
+            if (remind1h > DateTime.UtcNow)
+                hangfire.Schedule<INotificationPublisher>(p => p.PublishAsync(
+                    userId, ReminderType, "Rappel de rendez-vous", hourBefore, null), remind1h);
+        }
     }
 }

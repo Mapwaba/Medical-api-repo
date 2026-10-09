@@ -30,21 +30,25 @@ public class BookingExpiredConsumer(
         projection.Status = AppointmentStatus.Cancelled;
         await db.SaveChangesAsync();
 
-        await publisher.PushPendingCountAsync(projection.PatientId);
+        var patientSide = await PatientSide.RecipientsAsync(db, projection.AppointmentId, projection.PatientId);
+        foreach (var r in patientSide) await publisher.PushPendingCountAsync(r.UserId);
         await publisher.PushPendingCountAsync(projection.DoctorId);
 
-        await publisher.PublishAsync(projection.PatientId, "booking_expired", "Réservation expirée",
-            "Le paiement n'a pas été effectué à temps. Le rendez-vous a été annulé.");
         await publisher.PublishAsync(projection.DoctorId, "booking_expired", "Réservation expirée",
             "Un rendez-vous a été annulé faute de paiement dans les délais.");
+        foreach (var r in patientSide)
+        {
+            await publisher.PublishAsync(r.UserId, "booking_expired", "Réservation expirée",
+                r.Text("Le paiement n'a pas été effectué à temps. Le rendez-vous a été annulé."));
 
-        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == projection.PatientId);
-        if (contact is null) return;
+            var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == r.UserId);
+            if (contact is null) continue;
 
-        await email.SendAsync(contact.Email, "Réservation expirée",
-            $"Bonjour {contact.FirstName}, le paiement de votre rendez-vous n'a pas été effectué à temps et le rendez-vous a été annulé.");
+            var text = r.Text("Le paiement de votre rendez-vous n'a pas été effectué à temps et le rendez-vous a été annulé.");
+            await email.SendAsync(contact.Email, "Réservation expirée", $"Bonjour {contact.FirstName}, {char.ToLower(text[0])}{text[1..]}");
 
-        if (!string.IsNullOrWhiteSpace(contact.Phone))
-            await sms.SendAsync(contact.Phone, "LandaDoc: paiement non reçu à temps, votre rendez-vous a été annulé.");
+            if (!string.IsNullOrWhiteSpace(contact.Phone))
+                await sms.SendAsync(contact.Phone, "LandaDoc: paiement non reçu à temps, le rendez-vous a été annulé.");
+        }
     }
 }

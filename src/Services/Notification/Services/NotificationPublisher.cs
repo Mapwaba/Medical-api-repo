@@ -32,7 +32,7 @@ public class NotificationPublisher(
     public async Task PushPendingCountAsync(Guid userId)
     {
         var count = await db.AppointmentPendingProjections.CountAsync(p =>
-            p.Status == AppointmentStatus.Pending && (p.PatientId == userId || p.DoctorId == userId));
+            p.Status == AppointmentStatus.Pending && (p.PatientId == userId || p.DoctorId == userId || p.BookedByUserId == userId));
         await hub.Clients.Group(userId.ToString()).SendAsync("PendingCountChanged", count);
     }
 }

@@ -48,6 +48,7 @@ public class AppointmentDbContext(DbContextOptions<AppointmentDbContext> options
             e.Property(x => x.BookerId).HasColumnName("booker_id");
             e.Property(x => x.TargetId).HasColumnName("target_id");
             e.Property(x => x.IsDependentTarget).HasColumnName("is_dependent_target");
+            e.Property(x => x.TargetFirstName).HasColumnName("target_first_name").HasMaxLength(100);
             e.Property(x => x.SourceId).HasColumnName("source_id");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
 

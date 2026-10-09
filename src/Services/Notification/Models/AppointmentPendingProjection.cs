@@ -12,4 +12,8 @@ public class AppointmentPendingProjection
     public Guid PatientId { get; set; }
     public Guid DoctorId { get; set; }
     public AppointmentStatus Status { get; set; }
+    // The family member who booked it for the patient (null when the patient booked it, or for
+    // bookings made before this was recorded) and the patient's name, for the booker's messages
+    public Guid? BookedByUserId { get; set; }
+    public string? PatientName { get; set; }
 }

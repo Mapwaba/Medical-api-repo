@@ -17,8 +17,8 @@ public class FamilyLinkAcceptedConsumer(AppointmentDbContext db) : IConsumer<Fam
         if (exists) return;
 
         db.BookingAuthorizations.AddRange(
-            new BookingAuthorization { BookerId = msg.RequesterUserId, TargetId = msg.RecipientUserId, SourceId = msg.LinkId },
-            new BookingAuthorization { BookerId = msg.RecipientUserId, TargetId = msg.RequesterUserId, SourceId = msg.LinkId });
+            new BookingAuthorization { BookerId = msg.RequesterUserId, TargetId = msg.RecipientUserId, SourceId = msg.LinkId, TargetFirstName = msg.RecipientFirstName },
+            new BookingAuthorization { BookerId = msg.RecipientUserId, TargetId = msg.RequesterUserId, SourceId = msg.LinkId, TargetFirstName = msg.RequesterFirstName });
         await db.SaveChangesAsync();
     }
 }

@@ -23,6 +23,7 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
             e.Property(x => x.AppointmentId).HasColumnName("appointment_id");
             e.Property(x => x.DoctorId).HasColumnName("doctor_id");
             e.Property(x => x.PatientId).HasColumnName("patient_id");
+            e.Property(x => x.BookedByUserId).HasColumnName("booked_by_user_id");
             e.Property(x => x.GrossAmount).HasColumnName("gross_amount").HasPrecision(10, 2);
             e.Property(x => x.PlatformFee).HasColumnName("platform_fee").HasPrecision(10, 2);
             e.Property(x => x.NetAmount).HasColumnName("net_amount").HasPrecision(10, 2);

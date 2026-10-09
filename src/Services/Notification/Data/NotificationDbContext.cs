@@ -47,10 +47,13 @@ public class NotificationDbContext(DbContextOptions<NotificationDbContext> optio
             e.Property(x => x.PatientId).HasColumnName("patient_id");
             e.Property(x => x.DoctorId).HasColumnName("doctor_id");
             e.Property(x => x.Status).HasColumnName("status");
+            e.Property(x => x.BookedByUserId).HasColumnName("booked_by_user_id");
+            e.Property(x => x.PatientName).HasColumnName("patient_name");
 
-            // fast pending-count lookups per patient/doctor
+            // fast pending-count lookups per patient/doctor/booker
             e.HasIndex(x => new { x.PatientId, x.Status });
             e.HasIndex(x => new { x.DoctorId, x.Status });
+            e.HasIndex(x => new { x.BookedByUserId, x.Status });
         });
     }
 }

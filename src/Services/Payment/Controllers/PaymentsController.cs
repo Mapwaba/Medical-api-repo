@@ -209,8 +209,10 @@ public class PaymentsController(
         var payment = await db.Payments.FirstOrDefaultAsync(p => p.Id == id);
         if (payment is null) return NotFound();
 
+        // The patient pays, or the family member who booked for them (always the case for a
+        // dependant, who has no account)
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        if (payment.PatientId != callerId) return Forbid();
+        if (payment.PatientId != callerId && payment.BookedByUserId != callerId) return Forbid();
         if (payment.Status != PaymentStatus.Pending)
             return Conflict(new { error = "Payment is not in a payable state" });
 
@@ -350,7 +352,8 @@ public class PaymentsController(
         if (payment is null) return NotFound();
 
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        if (payment.PatientId != callerId && payment.DoctorId != callerId) return Forbid();
+        if (payment.PatientId != callerId && payment.DoctorId != callerId && !await BookedByAsync(payment.AppointmentId, callerId))
+            return Forbid();
 
         return Ok(MapToDto(payment));
     }
@@ -379,10 +382,16 @@ public class PaymentsController(
         if (payment is null) return NotFound();
 
         var callerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        if (payment.PatientId != callerId && payment.DoctorId != callerId) return Forbid();
+        if (payment.PatientId != callerId && payment.DoctorId != callerId && !await BookedByAsync(appointmentId, callerId))
+            return Forbid();
 
         return Ok(MapToDto(payment));
     }
+
+    // Whether the caller booked this appointment for a family member (recorded on the row opened
+    // at booking; later rows of the ledger don't repeat it)
+    private Task<bool> BookedByAsync(Guid appointmentId, Guid callerId) =>
+        db.Payments.AnyAsync(p => p.AppointmentId == appointmentId && p.BookedByUserId == callerId);
 
     private static PaymentDto MapToDto(Models.Payment p) => new(
         p.Id, p.AppointmentId, p.DoctorId, p.PatientId,

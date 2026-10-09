@@ -16,12 +16,14 @@ public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus) :
         // must be backed by a server-side authorization record populated only from
         // Identity-originated family-link/dependent events — never from client input.
         var targetPatientId = req.BookForPatientId ?? callerId;
+        string? targetFirstName = null;
         if (targetPatientId != callerId)
         {
-            var authorized = await db.BookingAuthorizations.AnyAsync(a =>
+            var authorization = await db.BookingAuthorizations.FirstOrDefaultAsync(a =>
                 a.BookerId == callerId && a.TargetId == targetPatientId);
-            if (!authorized)
+            if (authorization is null)
                 return new CreateAppointmentResult(CreateAppointmentResultStatus.Forbidden);
+            targetFirstName = authorization.TargetFirstName;
         }
 
         // Conflict check — no two active bookings at the same slot
@@ -57,7 +59,7 @@ public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus) :
             PatientEmail: null, // Notification service looks this up
             PatientPhone: null, // Notification service looks this up
             DoctorName: null,
-            PatientName: null,
+            PatientName: targetFirstName,   // only when booked for a relative: their messages say who it's for
             OccurredAt: DateTime.UtcNow,
             BookedByUserId: appt.BookedByUserId
         ));
@@ -68,9 +70,10 @@ public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus) :
     public Task<Models.Appointment?> GetByIdAsync(Guid id) =>
         db.Appointments.FirstOrDefaultAsync(a => a.Id == id);
 
+    // A patient's own appointments plus those they booked for a family member
     public Task<List<Models.Appointment>> GetMineAsync(Guid callerId, string role) =>
         db.Appointments
-            .Where(a => role == "Doctor" ? a.DoctorId == callerId : a.PatientId == callerId)
+            .Where(a => role == "Doctor" ? a.DoctorId == callerId : a.PatientId == callerId || a.BookedByUserId == callerId)
             .OrderByDescending(a => a.SlotStart)
             .ToListAsync();
 
@@ -102,7 +105,9 @@ public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus) :
     {
         var appt = await db.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId);
         if (appt is null) return new RescheduleAppointmentResult(RescheduleAppointmentResultStatus.NotFound);
-        if (appt.PatientId != patientId) return new RescheduleAppointmentResult(RescheduleAppointmentResultStatus.Forbidden);
+        // The patient, or the family member who booked it for them
+        if (appt.PatientId != patientId && appt.BookedByUserId != patientId)
+            return new RescheduleAppointmentResult(RescheduleAppointmentResultStatus.Forbidden);
         if (appt.Status is not (AppointmentStatus.Pending or AppointmentStatus.Confirmed))
             return new RescheduleAppointmentResult(RescheduleAppointmentResultStatus.InvalidStatus);
 

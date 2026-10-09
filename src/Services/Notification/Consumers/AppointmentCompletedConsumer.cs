@@ -25,17 +25,19 @@ public class AppointmentCompletedConsumer(
         projection.Status = AppointmentStatus.Completed;
         await db.SaveChangesAsync();
 
+        var patientSide = await PatientSide.RecipientsAsync(db, projection.AppointmentId, projection.PatientId);
         if (wasPending)
         {
-            await publisher.PushPendingCountAsync(projection.PatientId);
+            foreach (var r in patientSide) await publisher.PushPendingCountAsync(r.UserId);
             await publisher.PushPendingCountAsync(projection.DoctorId);
         }
 
         var doctor = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == projection.DoctorId);
         var doctorName = doctor is null ? "votre médecin" : $"{doctor.FirstName} {doctor.LastName}".Trim();
 
-        await publisher.PublishAsync(projection.PatientId, "appointment_completed", "Rendez-vous terminé",
-            $"Votre rendez-vous avec {doctorName} est terminé.");
+        foreach (var r in patientSide)
+            await publisher.PublishAsync(r.UserId, "appointment_completed", "Rendez-vous terminé",
+                r.Text($"Votre rendez-vous avec {doctorName} est terminé."));
         await publisher.PublishAsync(projection.DoctorId, "appointment_completed", "Rendez-vous terminé",
             "Le rendez-vous a été marqué comme terminé.");
     }

@@ -29,23 +29,26 @@ public class PaymentFailedConsumer(
         projection.Status = AppointmentStatus.Cancelled;
         await db.SaveChangesAsync();
 
-        await publisher.PushPendingCountAsync(projection.PatientId);
+        var patientSide = await PatientSide.RecipientsAsync(db, projection.AppointmentId, projection.PatientId);
+        foreach (var r in patientSide) await publisher.PushPendingCountAsync(r.UserId);
         await publisher.PushPendingCountAsync(projection.DoctorId);
 
-        await publisher.PublishAsync(projection.PatientId, "payment_failed", "Échec du paiement",
-            msg.Reason is null
-                ? "Le paiement de votre rendez-vous a échoué. Le rendez-vous a été annulé."
-                : $"Le paiement de votre rendez-vous a échoué ({msg.Reason}). Le rendez-vous a été annulé.");
         await publisher.PublishAsync(projection.DoctorId, "payment_failed", "Échec du paiement",
             "Le paiement d'un rendez-vous a échoué — le rendez-vous a été annulé.");
+        foreach (var r in patientSide)
+        {
+            await publisher.PublishAsync(r.UserId, "payment_failed", "Échec du paiement", r.Text(msg.Reason is null
+                ? "Le paiement de votre rendez-vous a échoué. Le rendez-vous a été annulé."
+                : $"Le paiement de votre rendez-vous a échoué ({msg.Reason}). Le rendez-vous a été annulé."));
 
-        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == projection.PatientId);
-        if (contact is null) return;
+            var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == r.UserId);
+            if (contact is null) continue;
 
-        await email.SendAsync(contact.Email, "Échec du paiement",
-            $"Bonjour {contact.FirstName}, le paiement de votre rendez-vous n'a pas pu être traité et le rendez-vous a été annulé.");
+            var text = r.Text("Le paiement de votre rendez-vous n'a pas pu être traité et le rendez-vous a été annulé.");
+            await email.SendAsync(contact.Email, "Échec du paiement", $"Bonjour {contact.FirstName}, {char.ToLower(text[0])}{text[1..]}");
 
-        if (!string.IsNullOrWhiteSpace(contact.Phone))
-            await sms.SendAsync(contact.Phone, "LandaDoc: échec du paiement, votre rendez-vous a été annulé.");
+            if (!string.IsNullOrWhiteSpace(contact.Phone))
+                await sms.SendAsync(contact.Phone, "LandaDoc: échec du paiement, le rendez-vous a été annulé.");
+        }
     }
 }

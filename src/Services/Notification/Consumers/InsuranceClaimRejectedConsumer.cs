@@ -22,11 +22,14 @@ public class InsuranceClaimRejectedConsumer(
         var body = $"{msg.InsurerName} n'a pas payé votre rendez-vous{reason}. Votre rendez-vous reste valable, " +
                    $"mais le montant de {amount} est maintenant à régler directement auprès du médecin.";
 
-        await publisher.PublishAsync(msg.PatientId, "insurance_claim_rejected", "Assurance : paiement refusé", body);
+        foreach (var r in await PatientSide.RecipientsAsync(db, msg.AppointmentId, msg.PatientId))
+        {
+            var text = r.Text(body, lowerFirst: false);   // starts with the insurer's name
+            await publisher.PublishAsync(r.UserId, "insurance_claim_rejected", "Assurance : paiement refusé", text);
 
-        var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
-        if (contact is null) return;
-
-        await email.SendAsync(contact.Email, "Assurance : paiement refusé", $"Bonjour {contact.FirstName}, {body}");
+            var contact = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == r.UserId);
+            if (contact is null) continue;
+            await email.SendAsync(contact.Email, "Assurance : paiement refusé", $"Bonjour {contact.FirstName}, {text}");
+        }
     }
 }

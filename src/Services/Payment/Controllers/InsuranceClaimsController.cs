@@ -41,8 +41,11 @@ public class InsuranceClaimsController(PaymentDbContext db, IPublishEndpoint bus
             .FirstOrDefaultAsync();
         if (claim is null) return NotFound();
 
+        // The patient, their doctor, or the family member who booked (and filed the claim) for them
         var callerId = CallerId();
-        if (claim.PatientId != callerId && claim.DoctorId != callerId) return Forbid();
+        if (claim.PatientId != callerId && claim.DoctorId != callerId
+            && !await db.Payments.AnyAsync(p => p.AppointmentId == appointmentId && p.BookedByUserId == callerId))
+            return Forbid();
 
         return Ok(MapToDto(claim));
     }

@@ -40,6 +40,7 @@ public class BookingCreatedConsumer(PaymentDbContext db, ILogger<BookingCreatedC
             AppointmentId = msg.AppointmentId,
             DoctorId = msg.DoctorId,
             PatientId = msg.PatientId,
+            BookedByUserId = msg.BookedByUserId == Guid.Empty || msg.BookedByUserId == msg.PatientId ? null : msg.BookedByUserId,
             GrossAmount = gross,
             PlatformFee = platformFee,
             NetAmount = net,

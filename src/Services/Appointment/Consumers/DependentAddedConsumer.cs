@@ -20,6 +20,7 @@ public class DependentAddedConsumer(AppointmentDbContext db) : IConsumer<Depende
             BookerId = msg.GuardianUserId,
             TargetId = msg.DependentId,
             IsDependentTarget = true,
+            TargetFirstName = msg.DependentFirstName,
             SourceId = msg.DependentId
         });
         await db.SaveChangesAsync();

@@ -56,7 +56,11 @@ public class FamilyService(IdentityDbContext db, IPublishEndpoint bus) : IFamily
         await db.SaveChangesAsync();
 
         // Publish domain event AFTER the DB commit
-        await bus.Publish(new FamilyLinkAcceptedEvent(link.Id, link.RequesterUserId, link.RecipientUserId, DateTime.UtcNow));
+        var firstNames = await db.Users
+            .Where(u => u.Id == link.RequesterUserId || u.Id == link.RecipientUserId)
+            .ToDictionaryAsync(u => u.Id, u => u.FirstName);
+        await bus.Publish(new FamilyLinkAcceptedEvent(link.Id, link.RequesterUserId, link.RecipientUserId, DateTime.UtcNow,
+            firstNames.GetValueOrDefault(link.RequesterUserId), firstNames.GetValueOrDefault(link.RecipientUserId)));
 
         return new RespondFamilyInviteResult(RespondFamilyInviteResultStatus.Success);
     }
@@ -166,7 +170,7 @@ public class FamilyService(IdentityDbContext db, IPublishEndpoint bus) : IFamily
         await db.SaveChangesAsync();
 
         // Publish domain event AFTER the DB commit
-        await bus.Publish(new DependentAddedEvent(dependent.Id, dependent.GuardianUserId, DateTime.UtcNow));
+        await bus.Publish(new DependentAddedEvent(dependent.Id, dependent.GuardianUserId, DateTime.UtcNow, dependent.FirstName));
 
         return new DependentDto(dependent.Id, dependent.GuardianUserId, dependent.FirstName, dependent.LastName,
             dependent.DateOfBirth, dependent.Gender?.ToString(), ChildSideLabel(dependent.Gender), dependent.CreatedAt);

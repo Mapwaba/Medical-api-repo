@@ -24,8 +24,9 @@ public class AppointmentRescheduledConsumer(
         var patient = await db.UserContacts.FirstOrDefaultAsync(c => c.UserId == msg.PatientId);
         var patientName = patient is null ? "Un patient" : $"{patient.FirstName} {patient.LastName}".Trim();
 
-        await publisher.PublishAsync(msg.PatientId, "appointment_rescheduled", "Rendez-vous reprogrammé",
-            $"Votre RDV avec {doctorName} a été déplacé du {msg.OldSlotStart:dd/MM/yyyy HH:mm} au {msg.NewSlotStart:dd/MM/yyyy HH:mm}.");
+        foreach (var r in await PatientSide.RecipientsAsync(db, msg.AppointmentId, msg.PatientId))
+            await publisher.PublishAsync(r.UserId, "appointment_rescheduled", "Rendez-vous reprogrammé",
+                r.Text($"Votre RDV avec {doctorName} a été déplacé du {msg.OldSlotStart:dd/MM/yyyy HH:mm} au {msg.NewSlotStart:dd/MM/yyyy HH:mm}."));
         await publisher.PublishAsync(msg.DoctorId, "appointment_rescheduled", "Rendez-vous reprogrammé",
             $"{patientName} a déplacé son RDV du {msg.OldSlotStart:dd/MM/yyyy HH:mm} au {msg.NewSlotStart:dd/MM/yyyy HH:mm}.");
     }
