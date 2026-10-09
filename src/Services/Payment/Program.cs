@@ -23,6 +23,9 @@ builder.Services.AddScoped<DoctorBalances>();
 builder.Services.Configure<MokoAfrikaOptions>(builder.Configuration.GetSection("MokoAfrika"));
 builder.Services.AddHttpClient<IMokoAfrikaClient, MokoAfrikaClient>(c =>
     c.BaseAddress = new Uri(builder.Configuration["MokoAfrika:BaseUrl"]!));
+// Records mobile money outcomes (callbacks and reconciliation), and catches lost callbacks
+builder.Services.AddScoped<MobileMoneySettlement>();
+builder.Services.AddHostedService<MobileMoneyReconciliationService>();
 
 var jwtSecret = builder.Configuration.GetJwtSecret();
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "landadoc";

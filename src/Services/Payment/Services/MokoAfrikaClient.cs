@@ -25,14 +25,17 @@ public class MokoAfrikaClient(HttpClient http, IOptions<MokoAfrikaOptions> optio
             ["merchant_id"] = _options.MerchantId,
             ["merchant_secrete"] = _options.MerchantSecret,
             ["action"] = "debit",
-            ["method"] = operatorMethod.ToString().ToLowerInvariant(),
+            ["method"] = MethodName(operatorMethod),
             ["amount"] = amount.ToString("0.##", CultureInfo.InvariantCulture),
             ["currency"] = "USD",
             ["customer_number"] = NormalizePhoneNumber(phoneNumber),
             ["reference"] = reference,
             ["firstname"] = firstName,
             ["lastname"] = lastName,
+            // FreshPay's PayDRC document spells it "e-mail"; the sandbox request this client was
+            // first checked against used "email". Both are sent until FreshPay confirms which.
             ["email"] = email,
+            ["e-mail"] = email,
             ["callback_url"] = callbackUrl
         };
 
@@ -45,7 +48,10 @@ public class MokoAfrikaClient(HttpClient http, IOptions<MokoAfrikaOptions> optio
         return new MokoDebitResult(response.IsSuccessStatusCode && status == "Success", transactionId, comment);
     }
 
-    public async Task<string?> VerifyAsync(string reference)
+    // FreshPay replies {"Status":"Success","Comment":"Transaction Found","Trans_Status":..., "Transaction_id":...}
+    // when it knows the transaction, and {"Status":"Error","resultCodeError":404,...} when it doesn't.
+    // Errors are read from the body whatever the HTTP status, since FreshPay uses both.
+    public async Task<MokoVerifyResult> VerifyAsync(string reference, CancellationToken ct = default)
     {
         var payload = new Dictionary<string, string?>
         {
@@ -55,12 +61,37 @@ public class MokoAfrikaClient(HttpClient http, IOptions<MokoAfrikaOptions> optio
             ["reference"] = reference
         };
 
-        var response = await http.PostAsJsonAsync("", payload);
-        if (!response.IsSuccessStatusCode) return null;
+        JsonElement body;
+        try
+        {
+            var response = await http.PostAsJsonAsync("", payload, ct);
+            body = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or NotSupportedException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            return new MokoVerifyResult(false, null, null, ex.GetBaseException().Message);
+        }
 
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return body.TryGetProperty("Trans_Status", out var t) ? t.GetString() : null;
+        if (body.ValueKind != JsonValueKind.Object || !string.Equals(Text(body, "Status"), "Success", StringComparison.OrdinalIgnoreCase))
+            return new MokoVerifyResult(false, null, null, Text(body, "Comment") ?? Text(body, "resultCodeErrorDescription"));
+
+        return new MokoVerifyResult(true,
+            Text(body, "Trans_Status"),
+            Text(body, "Transaction_id") ?? Text(body, "PayDRC_Reference"),
+            Text(body, "Trans_Status_Description"));
     }
+
+    // FreshPay's "method" values: airtel, orange, mpesa, afrimoney (Africell's service)
+    public static string MethodName(MobileMoneyOperator op) => op switch
+    {
+        MobileMoneyOperator.Africell => "afrimoney",
+        _ => op.ToString().ToLowerInvariant(),
+    };
+
+    private static string? Text(JsonElement body, string name) =>
+        body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+            ? v.GetString()
+            : null;
 
     public bool VerifySignature(string encryptedData, string signature)
     {
@@ -89,7 +120,7 @@ public class MokoAfrikaClient(HttpClient http, IOptions<MokoAfrikaOptions> optio
 
     // The confirmed sandbox sample sends the number as "243970000000" — 243 prefix, no
     // leading 0 — so normalize toward that shape rather than reject other formats.
-    private static string NormalizePhoneNumber(string phoneNumber)
+    public static string NormalizePhoneNumber(string phoneNumber)
     {
         var digits = new string(phoneNumber.Where(char.IsDigit).ToArray());
         if (digits.StartsWith("243", StringComparison.Ordinal)) return digits;

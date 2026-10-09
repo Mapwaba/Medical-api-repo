@@ -112,91 +112,86 @@ public class PaymentsController(
         return Ok();
     }
 
-    // Moko Afrika calls this endpoint (asynchronously, after the customer approves or
-    // rejects the mobile-money prompt) with an HMAC-signed, AES-encrypted payload.
+    // Moko Afrika (FreshPay) calls this endpoint after the customer approves or rejects the
+    // mobile money prompt. Two shapes arrive:
+    //  - {"data": "<AES-encrypted JSON>"} with an HMAC X-Signature header: trusted once checked;
+    //  - the plain JSON FreshPay's PayDRC document shows ({"Reference":..., "Trans_Status":...}):
+    //    unsigned, so anyone could post it — only its reference is used, and the outcome recorded
+    //    is the one FreshPay's verify action returns.
+    // Callbacks FreshPay never manages to deliver are caught by MobileMoneyReconciliationService.
     [HttpPost("webhook/moko")]
     [AllowAnonymous]
-    public async Task<IActionResult> MokoWebhook()
+    public async Task<IActionResult> MokoWebhook([FromServices] MobileMoneySettlement settlement, CancellationToken ct)
     {
-        var json = await new StreamReader(Request.Body).ReadToEndAsync();
-        var signature = Request.Headers["X-Signature"].ToString();
+        var json = await new StreamReader(Request.Body).ReadToEndAsync(ct);
 
-        string encryptedData;
+        JsonElement root;
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            encryptedData = doc.RootElement.GetProperty("data").GetString()!;
+            root = JsonSerializer.Deserialize<JsonElement>(json);
         }
-        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
+        catch (JsonException)
         {
             return BadRequest();
         }
+        if (root.ValueKind != JsonValueKind.Object) return BadRequest();
 
+        if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.String)
+            return await SignedMokoCallbackAsync(data.GetString()!, settlement, ct);
+
+        var callback = MokoCallback.From(root);
+        if (callback.Reference is null) return BadRequest();
+        return await PlainMokoCallbackAsync(callback, settlement, ct);
+    }
+
+    private async Task<IActionResult> SignedMokoCallbackAsync(string encryptedData, MobileMoneySettlement settlement, CancellationToken ct)
+    {
+        var signature = Request.Headers["X-Signature"].ToString();
         if (string.IsNullOrEmpty(signature) || !moko.VerifySignature(encryptedData, signature))
         {
             log.LogWarning("Moko Afrika webhook rejected: missing or invalid signature");
             return Unauthorized();
         }
 
-        JsonElement payload;
+        MokoCallback callback;
         try
         {
-            var decrypted = moko.Decrypt(encryptedData);
-            payload = JsonSerializer.Deserialize<JsonElement>(decrypted);
+            callback = MokoCallback.From(JsonSerializer.Deserialize<JsonElement>(moko.Decrypt(encryptedData)));
         }
         catch (Exception ex) when (ex is CryptographicException or FormatException or JsonException)
         {
             return BadRequest();
         }
+        if (callback.Reference is null) return Ok();
 
-        var reference = payload.GetProperty("Reference").GetString() ?? "";
-        var parts = reference.Split('_', 2);
-        if (parts.Length != 2 || !Guid.TryParseExact(parts[0], "N", out var paymentId))
+        await settlement.ApplyAsync(callback.Reference, callback.TransactionId, callback.TransStatus, callback.Description, "signed callback", ct);
+        return Ok(new { status = "Callback received successfully" });
+    }
+
+    private async Task<IActionResult> PlainMokoCallbackAsync(MokoCallback callback, MobileMoneySettlement settlement, CancellationToken ct)
+    {
+        // Only references of ours are worth a call to FreshPay
+        if (MobileMoneySettlement.PaymentIdFrom(callback.Reference!) is not { } paymentId
+            || !await db.Payments.AnyAsync(p => p.Id == paymentId, ct))
             return Ok();
 
-        var payment = await db.Payments.FindAsync(paymentId);
-        if (payment is null) return Ok();
-
-        var transactionId = payload.TryGetProperty("Transaction_id", out var t) ? t.GetString()
-            : payload.TryGetProperty("PayDRC_Reference", out var p) ? p.GetString() : reference;
-
-        // Moko Afrika may redeliver the callback — guard the insert-only ledger against duplicates
-        var alreadyProcessed = await db.Payments.AnyAsync(x => x.ProviderRef == transactionId);
-        if (alreadyProcessed) return Ok();
-
-        var transStatus = payload.TryGetProperty("Trans_Status", out var ts) ? ts.GetString() : null;
-        var succeeded = string.Equals(transStatus, "Success", StringComparison.OrdinalIgnoreCase);
-
-        // Insert a new terminal row (immutable ledger — no updates)
-        db.Payments.Add(new Models.Payment
+        // Ask FreshPay by our reference, then by its own id if it doesn't find that
+        var verified = await moko.VerifyAsync(callback.Reference!, ct);
+        if (!verified.Found && callback.TransactionId is { } providerId)
+            verified = await moko.VerifyAsync(providerId, ct);
+        if (!verified.Found)
         {
-            AppointmentId = payment.AppointmentId,
-            DoctorId = payment.DoctorId,
-            PatientId = payment.PatientId,
-            GrossAmount = payment.GrossAmount,
-            PlatformFee = payment.PlatformFee,
-            NetAmount = payment.NetAmount,
-            Status = succeeded ? PaymentStatus.Completed : PaymentStatus.Failed,
-            Provider = PaymentProvider.MokoAfrika,
-            ProviderRef = transactionId,
-        });
-        await db.SaveChangesAsync();
-
-        if (succeeded)
-        {
-            await bus.Publish(new PaymentCompletedEvent(
-                payment.AppointmentId, payment.DoctorId, payment.PatientId, DateTime.UtcNow));
-            log.LogInformation("Mobile money payment succeeded for appointment {AppointmentId}: {Amount} (Moko {ProviderRef})",
-                payment.AppointmentId, payment.GrossAmount, transactionId);
-        }
-        else
-        {
-            var reason = payload.TryGetProperty("Trans_Status_Description", out var d) ? d.GetString() : null;
-            await bus.Publish(new PaymentFailedEvent(payment.AppointmentId, reason, DateTime.UtcNow));
-            log.LogWarning("Mobile money payment failed for appointment {AppointmentId} (Moko {ProviderRef}): {Reason}",
-                payment.AppointmentId, transactionId, reason);
+            log.LogWarning("Moko Afrika callback for {Reference} not confirmed by FreshPay ({Reason}); left for reconciliation",
+                callback.Reference, verified.Description);
+            return Ok();
         }
 
+        if (!string.Equals(verified.TransStatus, callback.TransStatus, StringComparison.OrdinalIgnoreCase))
+            log.LogWarning("Moko Afrika callback for {Reference} said {CallbackStatus} but FreshPay says {VerifiedStatus}; recording FreshPay's",
+                callback.Reference, callback.TransStatus, verified.TransStatus);
+
+        await settlement.ApplyAsync(callback.Reference!, verified.TransactionId ?? callback.TransactionId,
+            verified.TransStatus, verified.Description ?? callback.Description, "plain callback, verified", ct);
         return Ok(new { status = "Callback received successfully" });
     }
 
@@ -341,6 +336,17 @@ public class PaymentsController(
                 payment.AppointmentId, result.Comment);
             return UnprocessableEntity(new { error = result.Comment ?? "Could not start the mobile money payment" });
         }
+
+        // Remembered so the reconciliation job can ask FreshPay about it if no callback comes
+        db.MobileMoneyAttempts.Add(new Models.MobileMoneyAttempt
+        {
+            PaymentId = payment.Id,
+            Reference = reference,
+            ProviderTransactionId = result.TransactionId,
+            Operator = request.Operator.Value,
+            Amount = payment.GrossAmount,
+        });
+        await db.SaveChangesAsync();
 
         log.LogInformation("Mobile money prompt sent for appointment {AppointmentId}: {Amount} via {Operator}",
             payment.AppointmentId, payment.GrossAmount, request.Operator);

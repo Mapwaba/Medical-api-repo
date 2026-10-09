@@ -12,9 +12,30 @@ public class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<Models.DoctorInsurerChoice> DoctorInsurerChoices => Set<Models.DoctorInsurerChoice>();
     public DbSet<Models.DoctorPayoutAccount> DoctorPayoutAccounts => Set<Models.DoctorPayoutAccount>();
     public DbSet<Models.DoctorPayout> DoctorPayouts => Set<Models.DoctorPayout>();
+    public DbSet<Models.MobileMoneyAttempt> MobileMoneyAttempts => Set<Models.MobileMoneyAttempt>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
+        // Mobile money prompts sent to FreshPay, until their outcome is recorded in the ledger
+        mb.Entity<Models.MobileMoneyAttempt>(e =>
+        {
+            e.ToTable("mobile_money_attempts");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id");
+            e.Property(x => x.PaymentId).HasColumnName("payment_id");
+            e.Property(x => x.Reference).HasColumnName("reference").HasMaxLength(80);
+            e.Property(x => x.ProviderTransactionId).HasColumnName("provider_transaction_id").HasMaxLength(80);
+            e.Property(x => x.Operator).HasColumnName("operator").HasConversion<string>();
+            e.Property(x => x.Amount).HasColumnName("amount").HasPrecision(10, 2);
+            e.Property(x => x.CreatedAt).HasColumnName("created_at");
+            e.Property(x => x.LastCheckedAt).HasColumnName("last_checked_at");
+            e.Property(x => x.ResolvedAt).HasColumnName("resolved_at");
+            e.Property(x => x.Outcome).HasColumnName("outcome").HasMaxLength(40);
+
+            e.HasIndex(x => x.Reference).IsUnique();
+            e.HasIndex(x => x.ResolvedAt);   // the reconciliation job reads the unresolved ones
+        });
+
         mb.Entity<Models.Payment>(e =>
         {
             e.ToTable("payments");
