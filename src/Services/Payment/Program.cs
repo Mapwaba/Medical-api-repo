@@ -21,8 +21,11 @@ StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
 builder.Services.AddScoped<DoctorBalances>();
 
 builder.Services.Configure<MokoAfrikaOptions>(builder.Configuration.GetSection("MokoAfrika"));
+// The sandbox (https://sandbox.gofreshpay.com/api/v1/gateway) while testing; an empty setting
+// (e.g. a blank Render variable) means FreshPay's production gateway
+var mokoBaseUrl = builder.Configuration["MokoAfrika:BaseUrl"];
 builder.Services.AddHttpClient<IMokoAfrikaClient, MokoAfrikaClient>(c =>
-    c.BaseAddress = new Uri(builder.Configuration["MokoAfrika:BaseUrl"]!));
+    c.BaseAddress = new Uri(string.IsNullOrWhiteSpace(mokoBaseUrl) ? "https://api.gofreshpay.com/api/v1/gateway" : mokoBaseUrl));
 // Records mobile money outcomes (callbacks and reconciliation), and catches lost callbacks
 builder.Services.AddScoped<MobileMoneySettlement>();
 builder.Services.AddHostedService<MobileMoneyReconciliationService>();

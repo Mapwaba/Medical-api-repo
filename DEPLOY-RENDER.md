@@ -32,6 +32,7 @@ This setup is for demos. For production, use the VPS setup in [DEPLOY.md](DEPLOY
    - `S3__ServiceUrl`, `S3__AccessKey`, `S3__SecretKey`: the R2 values from step 1.
    - `Frontend__PatientBaseUrl`: `https://landadoc-patient.vercel.app`, or whatever URL the Patient app gets on Vercel. You can change it later.
    - Stripe, MokoAfrika, Twilio, SendGrid: test keys, or leave them blank for now.
+   - `MokoAfrika__BaseUrl`: `https://sandbox.gofreshpay.com/api/v1/gateway` to test mobile money with Moko Afrika's sandbox (sign up on sandbox.gofreshpay.com for the merchant ID and secret; the sandbox AES and HMAC keys are on its callbacks page). Use `https://api.gofreshpay.com/api/v1/gateway`, or leave it blank, for real payments.
 3. Click **Apply**. The first deploy of each service fails because RabbitMQ isn't configured yet. That's expected.
 4. Go to **Env Groups → landadoc-shared** and add:
 

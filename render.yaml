@@ -192,6 +192,11 @@ services:
           property: connectionString
       - key: MokoAfrika__CallbackBaseUrl
         value: https://landadoc-payment.onrender.com
+      # FreshPay gateway: https://sandbox.gofreshpay.com/api/v1/gateway while testing (its test
+      # numbers only work there), https://api.gofreshpay.com/api/v1/gateway for real money.
+      # Left empty, the service uses the production address from appsettings.json.
+      - key: MokoAfrika__BaseUrl
+        sync: false
       - key: Frontend__PatientBaseUrl
         sync: false # the Patient app's Vercel URL
       - key: Stripe__SecretKey
