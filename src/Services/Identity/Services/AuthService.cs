@@ -224,7 +224,7 @@ public class AuthService(
 
     private async Task<AuthResponse> IssueTokensAsync(User user, bool includeProfile)
     {
-        var accessToken = tokens.GenerateAccessToken(user.Id, user.Email, user.Role.ToString());
+        var accessToken = tokens.GenerateAccessToken(user.Id, user.Email, user.Role.ToString(), user.Country);
         var refreshToken = tokens.GenerateRefreshToken();
 
         db.RefreshTokens.Add(new RefreshToken

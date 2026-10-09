@@ -222,6 +222,10 @@ public class PaymentsController(
         if (claimUnderReview)
             return Conflict(new { error = "An insurance claim for this booking is waiting for the doctor's review" });
 
+        // Card isn't offered where the payer lives (DRC: mobile money or insurance only)
+        if (!PaymentMethods.IsAllowed(request.Provider, User.FindFirstValue(PaymentMethods.CountryClaim)))
+            return BadRequest(new { error = "This payment method isn't available in your country" });
+
         return request.Provider switch
         {
             PaymentProvider.Stripe => await InitiateStripeAsync(payment),
