@@ -6,7 +6,8 @@ public enum CreateAppointmentResultStatus
 {
     Success,
     SlotConflict,
-    Forbidden
+    Forbidden,
+    SlotInPast
 }
 
 public record CreateAppointmentResult(CreateAppointmentResultStatus Status, Models.Appointment? Appointment = null);
@@ -27,7 +28,8 @@ public enum RescheduleAppointmentResultStatus
     NotFound,
     Forbidden,
     InvalidStatus,
-    SlotConflict
+    SlotConflict,
+    SlotInPast
 }
 
 public record RescheduleAppointmentResult(RescheduleAppointmentResultStatus Status, Models.Appointment? Appointment = null);

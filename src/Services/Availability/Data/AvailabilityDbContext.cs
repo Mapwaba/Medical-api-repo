@@ -26,6 +26,9 @@ public class AvailabilityDbContext(DbContextOptions<AvailabilityDbContext> optio
             e.Property(x => x.OpenTime).HasColumnName("open_time");
             e.Property(x => x.CloseTime).HasColumnName("close_time");
             e.Property(x => x.SlotMinutes).HasColumnName("slot_minutes");
+            // Existing schedules were all set up for Kinshasa time
+            e.Property(x => x.TimeZone).HasColumnName("time_zone").HasMaxLength(64)
+                .HasDefaultValue(LandaDoc.Shared.Models.LocalClock.DefaultTimeZone);
 
             e.HasIndex(x => new { x.DoctorId, x.Day });
         });

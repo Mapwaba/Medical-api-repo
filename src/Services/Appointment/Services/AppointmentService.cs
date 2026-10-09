@@ -7,8 +7,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace LandaDoc.Appointment.Services;
 
-public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus) : IAppointmentService
+public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus, IConfiguration cfg) : IAppointmentService
 {
+    // Slot times are on the doctor's clock, whose zone this service doesn't know (Availability
+    // does, and hides started slots). As a backstop, a slot that has already started on the
+    // earliest clock doctors use (Booking:TimeZone, Kinshasa by default — Lubumbashi is an hour
+    // ahead) is refused: it has started everywhere, and no future slot is ever refused.
+    private bool HasStarted(DateTime slotStart) =>
+        slotStart <= LocalClock.Now(cfg["Booking:TimeZone"] ?? LocalClock.DefaultTimeZone);
+
     public async Task<CreateAppointmentResult> CreateAsync(Guid callerId, CreateAppointmentRequest req)
     {
         // BookForPatientId is a target, never trusted directly: the caller's own identity
@@ -25,6 +32,9 @@ public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus) :
                 return new CreateAppointmentResult(CreateAppointmentResultStatus.Forbidden);
             targetFirstName = authorization.TargetFirstName;
         }
+
+        if (HasStarted(req.SlotStart))
+            return new CreateAppointmentResult(CreateAppointmentResultStatus.SlotInPast);
 
         // Conflict check — no two active bookings at the same slot
         var conflict = await db.Appointments.AnyAsync(a =>
@@ -110,6 +120,8 @@ public class AppointmentService(AppointmentDbContext db, IPublishEndpoint bus) :
             return new RescheduleAppointmentResult(RescheduleAppointmentResultStatus.Forbidden);
         if (appt.Status is not (AppointmentStatus.Pending or AppointmentStatus.Confirmed))
             return new RescheduleAppointmentResult(RescheduleAppointmentResultStatus.InvalidStatus);
+        if (HasStarted(req.SlotStart))
+            return new RescheduleAppointmentResult(RescheduleAppointmentResultStatus.SlotInPast);
 
         var conflict = await db.Appointments.AnyAsync(a =>
             a.Id != appointmentId &&

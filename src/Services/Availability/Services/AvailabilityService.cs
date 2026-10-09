@@ -9,14 +9,40 @@ namespace LandaDoc.Availability.Services;
 
 public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexer redis) : IAvailabilityService
 {
+    // The day's free slots, without those that have already started on the doctor's clock
     public async Task<List<string>> GetSlotsAsync(Guid doctorId, DateOnly date)
+    {
+        var day = await GetDaySlotsAsync(doctorId, date);
+        return day is null ? [] : StillBookable(day.Slots, date, LocalClock.Now(day.TimeZone));
+    }
+
+    // Slots on a past day, or earlier today than now (a slot that's started can't be booked)
+    public static List<string> StillBookable(IEnumerable<string> slots, DateOnly date, DateTime localNow)
+    {
+        var today = DateOnly.FromDateTime(localNow);
+        if (date < today) return [];
+        if (date > today) return slots.ToList();
+        var now = TimeOnly.FromDateTime(localNow);
+        return slots.Where(s => TimeOnly.Parse(s) > now).ToList();
+    }
+
+    // What's cached: the day's free slots before the clock is applied, and the doctor's zone
+    private record DaySlots(string TimeZone, List<string> Slots);
+
+    private async Task<DaySlots?> GetDaySlotsAsync(Guid doctorId, DateOnly date)
     {
         // 1. Check Redis cache first
         var cache = redis.GetDatabase();
         var cacheKey = $"slots:{doctorId}:{date:yyyy-MM-dd}";
         var cached = await cache.StringGetAsync(cacheKey);
         if (cached.HasValue)
-            return JsonSerializer.Deserialize<List<string>>(cached!)!;
+        {
+            try
+            {
+                if (JsonSerializer.Deserialize<DaySlots>(cached!) is { Slots: not null } hit) return hit;
+            }
+            catch (JsonException) { } // an entry in the old format (a bare list): recompute
+        }
 
         // 2. Compute from database
         // System.DayOfWeek and DayOfWeekEnum share identical member names.
@@ -24,16 +50,16 @@ public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexe
         var schedule = await db.Schedules
             .Where(s => s.DoctorId == doctorId && s.Day == day)
             .FirstOrDefaultAsync();
-        if (schedule is null) return [];
+        if (schedule is null) return null;
 
         // Generate all theoretical slots
+        // Counted in minutes from midnight: TimeOnly wraps at 24:00, so a day closing after 23:30
+        // (e.g. 23:59 with 30-minute slots) used to loop forever
         var slots = new List<string>();
-        var cur = schedule.OpenTime;
-        while (cur.AddMinutes(schedule.SlotMinutes) <= schedule.CloseTime)
-        {
-            slots.Add(cur.ToString("HH:mm"));
-            cur = cur.AddMinutes(schedule.SlotMinutes);
-        }
+        var open = (int)schedule.OpenTime.ToTimeSpan().TotalMinutes;
+        var close = (int)schedule.CloseTime.ToTimeSpan().TotalMinutes;
+        for (var start = open; schedule.SlotMinutes > 0 && start + schedule.SlotMinutes <= close; start += schedule.SlotMinutes)
+            slots.Add(TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(start)).ToString("HH:mm"));
 
         // Subtract booked and blocked
         var dayStart = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -52,7 +78,7 @@ public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexe
             .ToListAsync();
 
         var unavailable = booked.Concat(blocked).ToHashSet();
-        var result = slots.Where(s => !unavailable.Contains(s)).ToList();
+        var result = new DaySlots(schedule.TimeZone, slots.Where(s => !unavailable.Contains(s)).ToList());
 
         // 3. Store in Redis for 60 seconds
         await cache.StringSetAsync(cacheKey,
@@ -75,10 +101,13 @@ public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexe
             .Select(s => new ScheduleDayDto(s.Day, s.OpenTime, s.CloseTime, s.SlotMinutes))
             .ToListAsync();
 
-    // Simplest correct approach: full-week replace — delete then insert.
-    public async Task SetScheduleAsync(Guid doctorId, List<ScheduleDayDto> days)
+    // Simplest correct approach: full-week replace — delete then insert. Without a (known) time
+    // zone, the one the doctor's hours were in before is kept.
+    public async Task SetScheduleAsync(Guid doctorId, List<ScheduleDayDto> days, string? timeZone = null)
     {
-        var existing = db.Schedules.Where(s => s.DoctorId == doctorId);
+        var existing = await db.Schedules.Where(s => s.DoctorId == doctorId).ToListAsync();
+        var zone = LocalClock.IsKnown(timeZone) ? timeZone!
+            : existing.FirstOrDefault()?.TimeZone ?? LocalClock.DefaultTimeZone;
         db.Schedules.RemoveRange(existing);
 
         foreach (var day in days)
@@ -89,7 +118,8 @@ public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexe
                 Day = day.Day,
                 OpenTime = day.OpenTime,
                 CloseTime = day.CloseTime,
-                SlotMinutes = day.SlotMinutes
+                SlotMinutes = day.SlotMinutes,
+                TimeZone = zone,
             });
         }
         await db.SaveChangesAsync();

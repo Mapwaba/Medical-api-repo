@@ -33,6 +33,8 @@ public class AppointmentsController(IAppointmentService appointments, ILogger<Ap
         {
             CreateAppointmentResultStatus.Forbidden => Forbid(),
             CreateAppointmentResultStatus.SlotConflict => Conflict(new { error = "Slot no longer available" }),
+            // 409 like a taken slot, so the apps reload the times and the started one disappears
+            CreateAppointmentResultStatus.SlotInPast => Conflict(new { error = "That time has already passed", code = "slot_past" }),
             CreateAppointmentResultStatus.Success => StatusCode(201, result.Appointment),
             _ => Problem()
         };
@@ -102,6 +104,7 @@ public class AppointmentsController(IAppointmentService appointments, ILogger<Ap
             RescheduleAppointmentResultStatus.Forbidden => Forbid(),
             RescheduleAppointmentResultStatus.InvalidStatus => Conflict(new { error = "Appointment cannot be rescheduled from its current status" }),
             RescheduleAppointmentResultStatus.SlotConflict => Conflict(new { error = "That slot is no longer available" }),
+            RescheduleAppointmentResultStatus.SlotInPast => Conflict(new { error = "That time has already passed", code = "slot_past" }),
             RescheduleAppointmentResultStatus.Success => Ok(MapToDto(result.Appointment!)),
             _ => Problem()
         };

@@ -28,7 +28,7 @@ public class AvailabilityController(IAvailabilityService availability) : Control
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         var doctorId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        await availability.SetScheduleAsync(doctorId, req.Days);
+        await availability.SetScheduleAsync(doctorId, req.Days, req.TimeZone);
         return Ok(await availability.GetScheduleAsync(doctorId));
     }
 }

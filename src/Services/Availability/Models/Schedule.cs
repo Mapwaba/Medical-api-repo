@@ -11,4 +11,6 @@ public class Schedule
     public TimeOnly OpenTime { get; set; }
     public TimeOnly CloseTime { get; set; }
     public int SlotMinutes { get; set; } = 30;
+    // The zone OpenTime/CloseTime are in (the same on all of a doctor's days); see LocalClock
+    public string TimeZone { get; set; } = LocalClock.DefaultTimeZone;
 }
