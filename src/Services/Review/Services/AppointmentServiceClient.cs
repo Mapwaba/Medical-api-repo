@@ -13,6 +13,10 @@ public class AppointmentServiceClient(HttpClient http) : IAppointmentServiceClie
         var req = new HttpRequestMessage(HttpMethod.Get, $"/api/appointments/{appointmentId}");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
         var resp = await http.SendAsync(req);
-        return resp.IsSuccessStatusCode ? await resp.Content.ReadFromJsonAsync<AppointmentDto>() : null;
+        if (resp.IsSuccessStatusCode) return await resp.Content.ReadFromJsonAsync<AppointmentDto>();
+        // Not found or not theirs is an answer; anything else means Appointment couldn't answer
+        // (e.g. still waking up on Render's free plan)
+        if (resp.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Forbidden) return null;
+        throw new HttpRequestException($"Appointment service answered {(int)resp.StatusCode}", null, resp.StatusCode);
     }
 }

@@ -110,5 +110,6 @@ public class AppointmentsController(IAppointmentService appointments, ILogger<Ap
     private static AppointmentDto MapToDto(Models.Appointment a) => new(
         a.Id, a.RefNumber, a.DoctorId, a.PatientId, a.ClinicId, a.SlotStart, a.SlotEnd,
         a.Motif, a.Status, a.Notes, null, null, null, null, a.CreatedAt,
-        a.AwaitingInsuranceReview ? a.InsuranceReviewDueAt : null);
+        a.AwaitingInsuranceReview ? a.InsuranceReviewDueAt : null,
+        a.BookedByUserId == a.PatientId || a.BookedByUserId == Guid.Empty ? null : a.BookedByUserId);
 }

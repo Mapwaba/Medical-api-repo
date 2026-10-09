@@ -16,7 +16,9 @@ public class ReviewService(
     {
         var appt = await appointments.GetAppointmentAsync(req.AppointmentId, bearerToken);
         if (appt is null) return new SubmitReviewResult(SubmitReviewResultStatus.AppointmentNotFound);
-        if (appt.PatientId != patientId) return new SubmitReviewResult(SubmitReviewResultStatus.NotYourAppointment);
+        // The patient, or the family member who booked it for them (a child can't review)
+        if (appt.PatientId != patientId && appt.BookedByUserId != patientId)
+            return new SubmitReviewResult(SubmitReviewResultStatus.NotYourAppointment);
         if (appt.Status != AppointmentStatus.Completed) return new SubmitReviewResult(SubmitReviewResultStatus.NotCompleted);
 
         var alreadyReviewed = await db.Reviews.AnyAsync(r => r.AppointmentId == req.AppointmentId);

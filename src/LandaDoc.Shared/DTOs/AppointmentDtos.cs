@@ -12,7 +12,9 @@ string? PatientName, string? ClinicName,
 DateTime CreatedAt,
 // While an insurance claim waits for the doctor: when it's declined automatically if they
 // haven't answered (real UTC, unlike the slot times)
-DateTime? InsuranceReviewDueAt = null);
+DateTime? InsuranceReviewDueAt = null,
+// The family member who booked it for the patient; null when the patient booked it themselves
+Guid? BookedByUserId = null);
 public record CreateAppointmentRequest(
 [Required] Guid DoctorId,
 [Required] DateTime SlotStart,

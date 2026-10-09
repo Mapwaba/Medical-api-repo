@@ -18,13 +18,23 @@ public class ReviewsController(IReviewService reviews) : ControllerBase
         var patientId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var token = Request.Headers.Authorization.ToString().Replace("Bearer ", "");
 
-        var result = await reviews.SubmitAsync(patientId, token, req);
+        SubmitReviewResult result;
+        try
+        {
+            result = await reviews.SubmitAsync(patientId, token, req);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            // The appointment couldn't be checked (Appointment asleep or restarting): try again shortly
+            return Problem("The appointment couldn't be checked right now. Please try again in a minute.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
         return result.Status switch
         {
             SubmitReviewResultStatus.AppointmentNotFound => NotFound(),
             SubmitReviewResultStatus.NotYourAppointment => Forbid(),
-            SubmitReviewResultStatus.NotCompleted => Conflict(new { error = "Appointment is not completed yet" }),
-            SubmitReviewResultStatus.AlreadyReviewed => Conflict(new { error = "Appointment already reviewed" }),
+            SubmitReviewResultStatus.NotCompleted => Conflict(new { error = "Appointment is not completed yet", code = "not_completed" }),
+            SubmitReviewResultStatus.AlreadyReviewed => Conflict(new { error = "Appointment already reviewed", code = "already_reviewed" }),
             SubmitReviewResultStatus.Success => StatusCode(201, MapToDto(result.Review!)),
             _ => Problem()
         };
