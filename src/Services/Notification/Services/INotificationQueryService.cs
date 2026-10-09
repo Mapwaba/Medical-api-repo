@@ -5,5 +5,6 @@ namespace LandaDoc.Notification.Services;
 public interface INotificationQueryService
 {
     Task<List<NotificationDto>> GetMineAsync(Guid userId, bool unreadOnly);
+    Task<NotificationPageDto> GetPageAsync(Guid userId, int page, int pageSize, bool unreadOnly);
     Task<bool> MarkReadAsync(Guid userId, Guid notificationId);
 }

@@ -1,3 +1,4 @@
+using LandaDoc.Shared.DTOs;
 using System.Security.Claims;
 using LandaDoc.Notification.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,16 @@ public class NotificationsController(INotificationQueryService notifications) : 
     {
         var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         return Ok(await notifications.GetMineAsync(userId, unreadOnly));
+    }
+
+    // One page at a time, for the web apps' notifications page (page size 10, 20, 30, 50 or 100)
+    [HttpGet("mine/page")]
+    [Authorize]
+    public async Task<IActionResult> GetMinePage([FromQuery] int page = 1, [FromQuery] int pageSize = NotificationPageDto.DefaultPageSize,
+        [FromQuery] bool unreadOnly = false)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        return Ok(await notifications.GetPageAsync(userId, page, pageSize, unreadOnly));
     }
 
     [HttpPatch("{id:guid}/read")]

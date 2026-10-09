@@ -26,6 +26,7 @@ public class NotificationDbContext(DbContextOptions<NotificationDbContext> optio
 
             // fast lookup for a user's notification inbox
             e.HasIndex(x => x.UserId);
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });   // a user's notifications page by page, newest first
         });
 
         mb.Entity<Models.UserContact>(e =>
