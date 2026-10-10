@@ -25,6 +25,10 @@ public record InitiatePaymentResponse(PaymentProvider Provider, string? Checkout
 
 public record InsurerDto(Guid Id, string Name, string? Phone, string? Email, bool IsActive);
 
+// What deleting an insurer did: Deleted, or (when claims were made with it) SwitchedOff — it's
+// kept for those claims but no longer offered to patients
+public record DeleteInsurerResult(bool Deleted, bool SwitchedOff, int Claims);
+
 public record SaveInsurerRequest([Required, StringLength(120)] string Name, string? Phone, string? Email, bool IsActive = true);
 
 public record InsuranceClaimDto(

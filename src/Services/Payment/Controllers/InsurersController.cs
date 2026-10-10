@@ -51,7 +51,7 @@ public class InsurersController(PaymentDbContext db, ILogger<InsurersController>
     }
 
     // Edit a partner, or switch it off (IsActive = false) so patients stop seeing it.
-    // Insurers are never deleted: past claims still point at them.
+    // One with claims can't be deleted (see Delete): past claims still point at it.
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveInsurerRequest req)
@@ -74,6 +74,42 @@ public class InsurersController(PaymentDbContext db, ILogger<InsurersController>
         log.LogInformation("Insurer {InsurerId} ({InsurerName}) updated by admin {AdminId}, active: {IsActive}",
             insurer.Id, insurer.Name, CallerId(), insurer.IsActive);
         return Ok(MapToDto(insurer));
+    }
+
+    // Delete a partner. One that no claim was made with is removed, and doctors who had ticked it
+    // simply stop having it in their list. Claims keep pointing at their insurer, so one that was
+    // used is switched off instead: hidden from patients, kept for its claims.
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var insurer = await db.Insurers.FindAsync(id);
+        if (insurer is null) return NotFound();
+
+        var claims = await db.InsuranceClaims.CountAsync(c => c.InsurerId == id);
+        if (claims > 0)
+        {
+            if (insurer.IsActive)
+            {
+                insurer.IsActive = false;
+                await db.SaveChangesAsync();
+            }
+            log.LogInformation("Insurer {InsurerId} ({InsurerName}) switched off instead of deleted by admin {AdminId}: {ClaimCount} claim(s) use it",
+                insurer.Id, insurer.Name, CallerId(), claims);
+            return Ok(new DeleteInsurerResult(false, true, claims));
+        }
+
+        var choices = await db.DoctorInsurerChoices.Where(c => c.InsurerIds.Contains(id)).ToListAsync();
+        foreach (var choice in choices)
+        {
+            choice.InsurerIds = choice.InsurerIds.Where(i => i != id).ToList();
+            choice.UpdatedAt = DateTime.UtcNow;
+        }
+        db.Insurers.Remove(insurer);
+        await db.SaveChangesAsync();
+        log.LogInformation("Insurer {InsurerId} ({InsurerName}) deleted by admin {AdminId}; removed from {DoctorCount} doctor(s)' accepted list",
+            insurer.Id, insurer.Name, CallerId(), choices.Count);
+        return NoContent();
     }
 
     // The insurers the calling doctor takes (all of them until they choose)
