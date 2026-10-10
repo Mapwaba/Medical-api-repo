@@ -22,6 +22,21 @@ public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexe
             : new SlotsResponse(StillBookable(day.Slots, date, LocalClock.Now(day.TimeZone)), day.TimeZone);
     }
 
+    // Each day from `from` on, the same as asking for it alone (each day is cached separately)
+    public async Task<SlotRangeResponse> GetSlotRangeAsync(Guid doctorId, DateOnly from, int days)
+    {
+        var result = new List<DaySlotsDto>(days);
+        string? zone = null;
+        for (var i = 0; i < days; i++)
+        {
+            var date = from.AddDays(i);
+            var day = await GetSlotsWithZoneAsync(doctorId, date);
+            zone ??= day.TimeZone;
+            result.Add(new DaySlotsDto(date, day.Slots));
+        }
+        return new SlotRangeResponse(result, zone);
+    }
+
     // Slots on a past day, or earlier today than now (a slot that's started can't be booked)
     public static List<string> StillBookable(IEnumerable<string> slots, DateOnly date, DateTime localNow)
     {

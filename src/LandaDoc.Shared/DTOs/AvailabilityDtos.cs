@@ -17,3 +17,8 @@ public record UpdateScheduleRequest([Required] List<ScheduleDayDto> Days, [Strin
 // Slots are "HH:mm" on the doctor's clock; TimeZone is that clock's IANA zone ("Africa/Kinshasa"),
 // null when the doctor doesn't work that day. The Patient app uses it to show the viewer's time too.
 public record SlotsResponse(List<string> Slots, string? TimeZone = null);
+
+// Several days' free slots in one answer, for a calendar (the mobile app asks for a week or a
+// month at once instead of one request per day). Same rules as SlotsResponse for each day.
+public record DaySlotsDto(DateOnly Date, List<string> Slots);
+public record SlotRangeResponse(List<DaySlotsDto> Days, string? TimeZone = null);

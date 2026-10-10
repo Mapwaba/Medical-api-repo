@@ -14,6 +14,14 @@ public class AvailabilityController(IAvailabilityService availability) : Control
     public async Task<IActionResult> GetSlots([FromQuery] Guid doctorId, [FromQuery] DateOnly date) =>
         Ok(await availability.GetSlotsWithZoneAsync(doctorId, date));
 
+    // Up to two months of days in one request (default a week), e.g. a calendar's free times
+    [HttpGet("slots/range")]
+    public async Task<IActionResult> GetSlotRange([FromQuery] Guid doctorId, [FromQuery] DateOnly from, [FromQuery] int days = 7)
+    {
+        if (days is < 1 or > 62) return BadRequest(new { error = "days must be between 1 and 62" });
+        return Ok(await availability.GetSlotRangeAsync(doctorId, from, days));
+    }
+
     [HttpGet("schedule/mine")]
     [Authorize(Roles = "Doctor")]
     public async Task<IActionResult> GetMySchedule()

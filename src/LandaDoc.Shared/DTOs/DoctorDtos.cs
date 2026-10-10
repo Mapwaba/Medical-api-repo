@@ -34,7 +34,10 @@ public record DoctorSearchResultDto(
     decimal ConsultationFee,
     List<ClinicDto> Clinics,
     double AverageRating, int RatingCount,
-    string? PhotoDataUrl = null
+    // The photo inline (data: URL) — left out when the caller asks for photos=false, and fetched
+    // instead from GET api/search/doctors/{id}/photo, which can be cached. HasPhoto says if there's one.
+    string? PhotoDataUrl = null,
+    bool HasPhoto = false
 );
 
 public record CreateOwnDoctorProfileRequest(

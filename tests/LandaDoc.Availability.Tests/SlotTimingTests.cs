@@ -71,6 +71,27 @@ public class SlotTimingTests
         Assert.Empty(offered);   // 16:32 there: the last slot, 16:30, has started too
     }
 
+    // A week in one request: each day as it would be asked for alone, past days empty
+    [Fact]
+    public async Task A_range_returns_each_day_with_the_doctors_zone()
+    {
+        var service = Service(out _);
+        var doctorId = Guid.NewGuid();
+        await service.SetScheduleAsync(doctorId,
+            [new ScheduleDayDto(DayOfWeekEnum.Monday, new TimeOnly(9, 0), new TimeOnly(10, 0), 30)], "Africa/Lubumbashi");
+        var yesterday = DateOnly.FromDateTime(LocalClock.Now("Africa/Lubumbashi")).AddDays(-1);
+
+        var range = await service.GetSlotRangeAsync(doctorId, yesterday, 8);
+
+        Assert.Equal("Africa/Lubumbashi", range.TimeZone);
+        Assert.Equal(8, range.Days.Count);
+        Assert.Equal(yesterday, range.Days[0].Date);
+        Assert.Empty(range.Days[0].Slots);   // the past
+        var nextMonday = range.Days.Skip(1).Single(d => d.Date.DayOfWeek == DayOfWeek.Monday && d.Date > range.Days[1].Date);
+        Assert.Equal(["09:00", "09:30"], nextMonday.Slots);
+        Assert.All(range.Days.Where(d => d.Date.DayOfWeek != DayOfWeek.Monday), d => Assert.Empty(d.Slots));
+    }
+
     // A day closing just before midnight used to make slot generation loop forever
     [Fact]
     public async Task A_day_closing_just_before_midnight_ends()

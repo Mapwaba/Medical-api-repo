@@ -169,7 +169,8 @@ public class SearchIndexService(IConnectionMultiplexer redis) : ISearchIndexServ
             ParseClinics(map.GetValueOrDefault("clinics")),
             ratingCount > 0 ? ratingSum / ratingCount : 0,
             ratingCount,
-            string.IsNullOrEmpty(map.GetValueOrDefault("photo")) ? null : map["photo"]
+            string.IsNullOrEmpty(map.GetValueOrDefault("photo")) ? null : map["photo"],
+            HasPhoto: !string.IsNullOrEmpty(map.GetValueOrDefault("photo"))
         );
     }
 
