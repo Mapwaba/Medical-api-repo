@@ -15,6 +15,9 @@ public class Clinic
     public string? Website { get; set; }
     public string? Description { get; set; }
     public string? LogoDataUrl { get; set; } // small image stored inline as a data: URL
+    // Offered to doctors in the clinic lists they pick from. A clinic switched off stays with the
+    // doctors who already work there (and patients still see it on them).
+    public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -11,20 +11,28 @@ public record CreateClinicRequest(
     string? Phone
 );
 
+// null fields are left unchanged; IsActive switches the clinic on or off for doctors' lists
 public record UpdateClinicRequest(
     string? Name,
     ClinicType? Type,
     string? Address,
     string? City,
-    string? Phone
+    string? Phone,
+    bool? IsActive = null
 );
+
+// What deleting a clinic did: Deleted, or (when doctors work there) SwitchedOff — kept for them,
+// but no longer offered in the lists doctors pick from
+public record DeleteClinicResult(bool Deleted, bool SwitchedOff, int Doctors);
 
 // Just enough to pick a clinic on the public doctor registration form — no phone or address.
 public record ClinicOptionDto(Guid Id, string Name, string City);
 
 public record ClinicDto(
     Guid Id, string Name, ClinicType Type, string? Address, string City, string? Phone,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    // false: no longer offered to doctors picking their clinics (see Clinic.IsActive)
+    bool IsActive = true
 );
 
 // A doctor's own establishment, as shown and edited on the Doctor app's Workplace page.

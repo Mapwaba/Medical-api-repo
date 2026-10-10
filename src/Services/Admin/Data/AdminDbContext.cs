@@ -26,6 +26,7 @@ public class AdminDbContext(DbContextOptions<AdminDbContext> options) : DbContex
             e.Property(x => x.Website).HasColumnName("website");
             e.Property(x => x.Description).HasColumnName("description");
             e.Property(x => x.LogoDataUrl).HasColumnName("logo_data_url");
+            e.Property(x => x.IsActive).HasColumnName("is_active").HasDefaultValue(true).HasSentinel(true);   // existing clinics stay offered
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
         });
