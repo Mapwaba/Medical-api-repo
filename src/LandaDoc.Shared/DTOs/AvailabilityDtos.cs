@@ -22,3 +22,12 @@ public record SlotsResponse(List<string> Slots, string? TimeZone = null);
 // month at once instead of one request per day). Same rules as SlotsResponse for each day.
 public record DaySlotsDto(DateOnly Date, List<string> Slots);
 public record SlotRangeResponse(List<DaySlotsDto> Days, string? TimeZone = null);
+
+// A slot the doctor has taken out (time off, admin work) on top of their weekly schedule.
+// SlotStart is wall-clock time on the doctor's clock, like appointment times.
+public record BlockedSlotDto(DateTime SlotStart, string? Reason);
+
+// Block or unblock several slots at once (a whole day = all of that day's times)
+public record BlockSlotsRequest(
+    [Required, MinLength(1), MaxLength(200)] List<DateTime> SlotStarts,
+    [StringLength(200)] string? Reason = null);

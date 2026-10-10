@@ -108,6 +108,56 @@ public class AvailabilityService(AvailabilityDbContext db, IConnectionMultiplexe
         return result;
     }
 
+    // ── Blocked slots (doctors taking time out of their schedule) ──────────
+
+    public async Task<List<BlockedSlotDto>> GetBlockedAsync(Guid doctorId, DateOnly from, int days)
+    {
+        var start = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var end = from.AddDays(days).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        return await db.BlockedSlots
+            .Where(b => b.DoctorId == doctorId && b.SlotStart >= start && b.SlotStart < end)
+            .OrderBy(b => b.SlotStart)
+            .Select(b => new BlockedSlotDto(b.SlotStart, b.Reason))
+            .ToListAsync();
+    }
+
+    public async Task<int> BlockAsync(Guid doctorId, IEnumerable<DateTime> slotStarts, string? reason)
+    {
+        var wanted = slotStarts.Select(Normalize).Distinct().ToList();
+        var existing = await db.BlockedSlots
+            .Where(b => b.DoctorId == doctorId && wanted.Contains(b.SlotStart))
+            .Select(b => b.SlotStart)
+            .ToListAsync();
+        var added = wanted.Except(existing).ToList();
+        foreach (var slotStart in added)
+            db.BlockedSlots.Add(new Models.BlockedSlot { DoctorId = doctorId, SlotStart = slotStart, Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim() });
+        await db.SaveChangesAsync();
+        await InvalidateDaysAsync(doctorId, added);
+        return added.Count;
+    }
+
+    public async Task<int> UnblockAsync(Guid doctorId, IEnumerable<DateTime> slotStarts)
+    {
+        var wanted = slotStarts.Select(Normalize).Distinct().ToList();
+        var blocked = await db.BlockedSlots
+            .Where(b => b.DoctorId == doctorId && wanted.Contains(b.SlotStart))
+            .ToListAsync();
+        db.BlockedSlots.RemoveRange(blocked);
+        await db.SaveChangesAsync();
+        await InvalidateDaysAsync(doctorId, blocked.Select(b => b.SlotStart));
+        return blocked.Count;
+    }
+
+    // Slot times are wall-clock values stored as UTC-kind, to the minute (like appointments)
+    private static DateTime Normalize(DateTime slotStart) =>
+        DateTime.SpecifyKind(new DateTime(slotStart.Year, slotStart.Month, slotStart.Day, slotStart.Hour, slotStart.Minute, 0), DateTimeKind.Utc);
+
+    private async Task InvalidateDaysAsync(Guid doctorId, IEnumerable<DateTime> slotStarts)
+    {
+        foreach (var date in slotStarts.Select(DateOnly.FromDateTime).Distinct())
+            await InvalidateCacheAsync(doctorId, date);
+    }
+
     // Call this whenever a booking is created or cancelled
     public async Task InvalidateCacheAsync(Guid doctorId, DateOnly date)
     {

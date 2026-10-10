@@ -92,6 +92,32 @@ public class SlotTimingTests
         Assert.All(range.Days.Where(d => d.Date.DayOfWeek != DayOfWeek.Monday), d => Assert.Empty(d.Slots));
     }
 
+    // A doctor takes slots out and gives them back; patients see the change at once
+    [Fact]
+    public async Task Blocked_slots_leave_the_free_times_and_come_back_when_unblocked()
+    {
+        var service = Service(out _);
+        var doctorId = Guid.NewGuid();
+        await service.SetScheduleAsync(doctorId,
+            Enum.GetValues<DayOfWeekEnum>().Select(d => new ScheduleDayDto(d, new TimeOnly(9, 0), new TimeOnly(11, 0), 30)).ToList());
+        var tomorrow = DateOnly.FromDateTime(LocalClock.Now(null)).AddDays(1);
+        DateTime At(int h, int m) => tomorrow.ToDateTime(new TimeOnly(h, m), DateTimeKind.Utc);
+
+        var blocked = await service.BlockAsync(doctorId, [At(9, 30), At(10, 0), At(9, 30)], "Staff meeting");
+        var again = await service.BlockAsync(doctorId, [At(9, 30)], null);
+
+        Assert.Equal(2, blocked);   // the repeated 09:30 counts once
+        Assert.Equal(0, again);
+        Assert.Equal(["09:00", "10:30"], await service.GetSlotsAsync(doctorId, tomorrow));
+        var list = await service.GetBlockedAsync(doctorId, tomorrow, 1);
+        Assert.Equal([At(9, 30), At(10, 0)], list.Select(b => b.SlotStart));
+        Assert.All(list, b => Assert.Equal("Staff meeting", b.Reason));
+
+        Assert.Equal(1, await service.UnblockAsync(doctorId, [At(10, 0)]));
+        Assert.Equal(["09:00", "10:00", "10:30"], await service.GetSlotsAsync(doctorId, tomorrow));
+        Assert.Empty(await service.GetBlockedAsync(doctorId, tomorrow.AddDays(1), 7));   // other days untouched
+    }
+
     // A day closing just before midnight used to make slot generation loop forever
     [Fact]
     public async Task A_day_closing_just_before_midnight_ends()

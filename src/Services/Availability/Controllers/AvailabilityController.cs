@@ -22,6 +22,35 @@ public class AvailabilityController(IAvailabilityService availability) : Control
         return Ok(await availability.GetSlotRangeAsync(doctorId, from, days));
     }
 
+    // The calling doctor's blocked slots over up to two months (default a week)
+    [HttpGet("blocked/mine")]
+    [Authorize(Roles = "Doctor")]
+    public async Task<IActionResult> GetMyBlocked([FromQuery] DateOnly from, [FromQuery] int days = 7)
+    {
+        if (days is < 1 or > 62) return BadRequest(new { error = "days must be between 1 and 62" });
+        return Ok(await availability.GetBlockedAsync(DoctorId(), from, days));
+    }
+
+    // Take slots out of the schedule (time off, admin work); a booked slot stays booked
+    [HttpPost("blocked/mine")]
+    [Authorize(Roles = "Doctor")]
+    public async Task<IActionResult> BlockMine([FromBody] BlockSlotsRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return Ok(new { blocked = await availability.BlockAsync(DoctorId(), req.SlotStarts, req.Reason) });
+    }
+
+    // Give blocked slots back to patients
+    [HttpPost("blocked/mine/unblock")]
+    [Authorize(Roles = "Doctor")]
+    public async Task<IActionResult> UnblockMine([FromBody] BlockSlotsRequest req)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        return Ok(new { unblocked = await availability.UnblockAsync(DoctorId(), req.SlotStarts) });
+    }
+
+    private Guid DoctorId() => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
     [HttpGet("schedule/mine")]
     [Authorize(Roles = "Doctor")]
     public async Task<IActionResult> GetMySchedule()
